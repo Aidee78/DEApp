@@ -7,7 +7,7 @@ application that processes four defined types of emails from Zoho Mail,
 extracts and validates their data, updates an Excel workbook stored in
 Dropbox, and records successful execution state.
 
-Do not modify any file in this codebase, no matter what. Alway let me know if a step requires modification of the codebase.
+Do not modify any file in this codebase without my permission and review, no matter what. Alway let me know if a step requires modification of the codebase.
 
 The intended production workflow is:
 

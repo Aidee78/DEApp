@@ -2,532 +2,578 @@
 
 ## 1. Project Overview
 
-**DEApp (Data Extraction Application)** is a Windows-based Python application that will:
+**DEApp (Data Extraction Application)** is a Windows-based Python application that retrieves four defined types of emails from Zoho Mail, extracts and validates their data, updates an Excel workbook stored in Dropbox, and records successful execution state.
 
-1. Run manually from the command line or automatically through Windows Task Scheduler.
-2. Determine the processing date range.
-3. Connect to a Zoho Mail account.
-4. Retrieve four specific types of emails.
-5. Use a dedicated parser for each email type.
-6. Extract the required data from those emails.
-7. Download a specified Excel workbook from Dropbox.
-8. Update the workbook using `xlwings`.
-9. Validate the updated workbook.
-10. Upload the successfully processed workbook back to Dropbox.
-11. Record the successful execution state.
-12. Display progress through a minimal GUI and maintain detailed logs.
+The application is intended to:
 
-The application must ensure that only one instance runs at a time and that the Dropbox workbook is not updated when processing fails.
+- Run manually through the command line.
+- Run automatically through Windows Task Scheduler, targeting approximately 08:30 daily.
+- Determine the appropriate processing date range for each execution.
+- Authenticate securely with Zoho Mail and retrieve the required emails.
+- Parse each email type with its own dedicated parser.
+- Validate extracted data before using it to update the workbook.
+- Download the target Excel workbook from Dropbox to a local working location.
+- Modify the workbook using `xlwings` and Microsoft Excel.
+- Validate the updated workbook before uploading it.
+- Upload the workbook to Dropbox only after the required processing and validation succeed.
+- Record successful execution state only after the upload succeeds.
+- Provide useful logs and a minimal GUI showing execution progress.
+- Prevent multiple DEApp instances from processing concurrently.
+- Eventually be packaged as a Windows executable.
 
----
+This plan orders development by **increasing complexity**. Each phase establishes a usable layer that can be tested before the next major layer is introduced.
 
-# 2. Development Principles
+## 2. Development Principles
 
-- Build the application incrementally.
-- Keep business logic separate from external-service code.
-- Keep the GUI separate from application logic.
-- Use structured logging instead of relying on `print()` for the finished application.
-- Keep secrets separate from normal configuration.
-- Keep runtime state separate from configuration.
-- Test components independently before integrating them.
-- Do not update the Dropbox workbook until the complete processing operation succeeds.
-- Design the application so it can later be packaged as a Windows `.exe`.
+1. **Build incrementally.** Implement and test each phase before moving to the next major phase.
+2. **Preserve the modular architecture.** Extend the existing `src/deapp/` structure rather than replacing it with a monolithic or simplified design.
+3. **Inspect before modifying.** Check the relevant source files, tests, configuration, and documentation before making changes. A file's existence does not mean its functionality is implemented.
+4. **Separate concerns.** Keep application orchestration, external-service integrations, parsing, workbook operations, GUI, configuration, and state management in their appropriate modules.
+5. **Keep secrets separate.** Never commit credentials, tokens, authorization codes, or real email content.
+6. **Keep configuration and state separate.** Configuration describes how the application should operate; state records the outcome of previous executions.
+7. **Protect production data.** Do not upload a workbook unless the required processing and validation succeed.
+8. **Advance state only after success.** Save successful execution state only after the Dropbox upload succeeds.
+9. **Test independently before integration.** Use unit tests for component logic and safe, explicitly configured integration tests for external services.
+10. **Keep documentation synchronized.** Update the README, configuration examples, tests, and this plan when implementation changes make them inaccurate.
+11. **Do not invent business rules.** Identify unresolved decisions and ask for clarification when an assumption could affect extracted data, workbook contents, date ranges, or production behavior.
+12. **Report verified behavior accurately.** Distinguish documented requirements from implemented and tested functionality.
 
----
+## 3. Target Architecture
 
-# 3. Development Phases
+Retain the existing modular Python package and extend its modules as required.
 
-## Phase 1 — Project Setup
+```text
+DEApp/
+├── config/
+│   └── config.toml
+├── data/
+│   └── state.json
+├── docs/
+│   └── DEVELOPMENT_PLAN.md
+├── logs/
+├── scripts/
+├── tests/
+│   ├── unit/
+│   └── integration/
+└── src/deapp/
+    ├── application/
+    │   ├── exceptions.py
+    │   ├── runner.py
+    │   └── workflow.py
+    ├── cli/
+    ├── config/
+    ├── gui/
+    ├── locking/
+    ├── logging/
+    ├── models/
+    ├── parsers/
+    │   ├── parser_1.py
+    │   ├── parser_2.py
+    │   ├── parser_3.py
+    │   └── parser_4.py
+    ├── services/
+    │   ├── dropbox/
+    │   ├── excel/
+    │   └── zoho/
+    ├── state/
+    └── utils/
+```
 
-### Objectives
+Module responsibilities:
 
-Establish the Python project and development environment.
+- `application/`: application orchestration, workflow, and application-level exceptions.
+- `cli/`: command-line arguments and validation.
+- `config/`: ordinary settings, environment variables, and startup configuration validation.
+- `gui/`: progress display and user interaction only.
+- `locking/`: single-instance coordination.
+- `logging/`: centralized logging configuration.
+- `models/`: structured email and extracted-data representations.
+- `parsers/`: one parser per target email type.
+- `services/zoho/`: Zoho OAuth and Mail API integration.
+- `services/dropbox/`: Dropbox authentication and file transfer.
+- `services/excel/`: workbook manipulation and validation.
+- `state/`: persistent successful-execution state.
+- `utils/`: small, reusable helpers with clear responsibilities.
+
+Parsers must not call Zoho, Dropbox, or Excel directly, control the GUI, or manage scheduling. They should transform their specific email format into structured application data.
+
+## 4. Development Phases
+
+# Phase 1 — Project Foundation and Configuration
+
+### Objective
+
+Establish a runnable Python project with a clear structure and validated configuration before implementing the application's business functionality.
 
 ### Tasks
 
-- [ ] Create the Python virtual environment.
-- [ ] Configure `pyproject.toml`.
-- [ ] Verify the `src/deapp/` package structure.
-- [ ] Verify that the application can be executed as a Python module.
-- [ ] Configure `.gitignore`.
-- [ ] Create/update `README.md`.
-- [ ] Create the `docs/` directory.
-- [ ] Confirm the project runs without external integrations.
+#### 1.1. Establish the project environment
 
-### Expected result
+- [ ] Verify the supported Python version and local development environment.
+- [ ] Configure `pyproject.toml`, including project metadata, dependencies, and development tools.
+- [ ] Verify the existing `src/deapp/` package structure.
+- [ ] Verify that `python -m deapp` reaches the application entry point.
+- [ ] Configure `.gitignore` for virtual environments, secrets, temporary files, logs as appropriate, and generated artifacts.
+- [ ] Ensure the required project and test directories exist.
 
-The project has a clean Python structure and can be started locally.
+#### 1.2. Implement configuration management
+
+- [ ] Define ordinary application settings.
+- [ ] Implement loading of `config/config.toml`.
+- [ ] Implement environment-variable loading for secrets.
+- [ ] Create or update `.env.example` using placeholder values only.
+- [ ] Separate secrets from ordinary settings.
+- [ ] Validate required settings at startup.
+- [ ] Report missing or invalid setting names without exposing their values.
+- [ ] Define how configuration paths are resolved in development and in a packaged application.
+
+#### 1.3. Establish basic application structure
+
+- [ ] Verify the entry point, CLI, runner, and workflow responsibilities.
+- [ ] Preserve separation between application logic and external integrations.
+- [ ] Add useful docstrings and Python 3.14-compatible type annotations to new or modified code.
+- [ ] Add initial tests for configuration loading and startup behavior.
+- [ ] Update setup instructions in `README.md`.
+
+#### 1.4. Record foundational requirements
+
+- [ ] Identify the target Windows environment.
+- [ ] Confirm the expected Microsoft Excel installation for `xlwings`.
+- [ ] Identify the intended Zoho account/API access requirements.
+- [ ] Identify the target Dropbox workbook and path, when known.
+- [ ] Record unresolved business decisions without guessing their answers.
+
+### Acceptance criteria
+
+- DEApp starts as a Python module.
+- Configuration is loaded and validated.
+- Missing or invalid configuration produces actionable errors.
+- Secrets are not stored in committed files or printed in logs.
+- Initial tests pass, and setup instructions match the actual project.
+
+**Deliverable:** A runnable, configurable application foundation.
 
 ---
 
-# Phase 2 — Configuration and Environment
+# Phase 2 — Command-Line Interface, Dates and Execution State
 
-### Objectives
+### Objective
 
-Establish how DEApp receives configuration and secrets.
+Enable DEApp to determine the processing period and retain the outcome of previous successful executions without requiring external services.
 
 ### Tasks
 
-- [ ] Define required environment variables.
-- [ ] Configure `.env` for local development.
-- [ ] Create `.env.example`.
-- [ ] Create `config/config.toml`.
-- [ ] Implement configuration loading.
-- [ ] Separate secrets from ordinary application configuration.
-- [ ] Validate required configuration at application startup.
+#### 2.1. Implement command-line arguments
 
-### Important distinction
-
-**Configuration** describes what the application should use.
-
-**State** describes what happened during previous executions.
-
----
-
-# Phase 3 — Execution State
-
-### Objectives
-
-Implement persistent application state.
-
-### Tasks
-
-- [ ] Create `data/state.json`.
-- [ ] Implement reading the last successful execution date.
-- [ ] Implement saving successful execution state.
-- [ ] Handle missing state files.
-- [ ] Handle invalid/corrupted state files.
-- [ ] Ensure failed executions do not update the successful-execution state.
-
-### Expected result
-
-DEApp can determine where the previous successful processing ended.
-
----
-
-# Phase 4 — Command-Line Interface
-
-### Objectives
-
-Implement command-line execution.
-
-### Supported execution forms
-
-No arguments:
+Support the following forms:
 
 ```text
 python -m deapp
-```
-
-Start date only:
-
-```text
 python -m deapp --start-date YYYY-MM-DD
-```
-
-End date only:
-
-```text
 python -m deapp --end-date YYYY-MM-DD
-```
-
-Both dates:
-
-```text
 python -m deapp --start-date YYYY-MM-DD --end-date YYYY-MM-DD
 ```
 
-### Tasks
-
 - [ ] Implement argument parsing with `argparse`.
-- [ ] Validate `YYYY-MM-DD`.
-- [ ] Implement start-date-only behavior.
-- [ ] Implement end-date-only behavior.
-- [ ] Implement both-date behavior.
-- [ ] Implement no-argument behavior.
+- [ ] Validate dates in `YYYY-MM-DD` format.
 - [ ] Reject invalid date ranges.
-- [ ] Define appropriate exit codes.
+- [ ] Define appropriate exit codes for invalid arguments.
+- [ ] Provide clear command-line help.
 
-### Date rules
+#### 2.2. Implement date resolution
 
-No arguments:
+Define and implement the date range for each invocation.
 
-```text
-start = date after/based on the last successful execution according to the finalized business rule
-end   = current date
-```
+| Invocation | Start date | End date |
+|---|---|---|
+| No arguments | Based on the last successful execution, according to the finalized boundary rule | Current date |
+| Start date only | Supplied start date | Current date |
+| End date only | Last successful execution date, according to the finalized boundary rule | Supplied end date |
+| Both dates | Supplied start date | Supplied end date |
 
-Start only:
+- [ ] Centralize date parsing and range resolution.
+- [ ] Validate impossible dates and invalid ranges.
+- [ ] Test date boundaries, including month/year changes.
+- [ ] Finalize whether the last successful date is included or excluded before relying on it in production.
 
-```text
-start = supplied date
-end   = current date
-```
+#### 2.3. Implement execution-state management
 
-End only:
+- [ ] Implement reading and writing `data/state.json`.
+- [ ] Store the last successful processing state using a documented schema.
+- [ ] Handle a missing state file.
+- [ ] Handle malformed, corrupted, or unreadable state files explicitly.
+- [ ] Prevent failed executions from advancing successful state.
+- [ ] Make state writes robust against partial writes where practical.
+- [ ] Test state persistence and recovery.
 
-```text
-start = last successful execution date
-end   = supplied date
-```
+At this phase, test state management independently. Later workflow integration must enforce the exact point at which an execution is considered successful.
 
-Both:
+### Acceptance criteria
 
-```text
-start = supplied start date
-end   = supplied end date
-```
+- All supported CLI forms behave as documented.
+- Date ranges are validated and resolved consistently.
+- State survives application restarts.
+- Missing or corrupted state is handled explicitly.
+- Tests verify that unsuccessful operations do not advance successful state.
 
-The exact inclusive/exclusive interpretation of the last successful date will be finalized before implementation.
+**Deliverable:** A tested execution foundation with CLI, date resolution, and persistent state.
 
 ---
 
-# Phase 5 — Application Logging
+# Phase 3 — Zoho Authentication and Mail Integration
 
-### Objectives
+### Objective
 
-Implement production-quality logging.
-
-### Log levels
-
-- DEBUG
-- INFO
-- WARNING
-- ERROR
-- CRITICAL
+Connect to Zoho Mail and retrieve the required emails for a specified processing period.
 
 ### Tasks
 
-- [ ] Create centralized logging configuration.
-- [ ] Create file logging.
-- [ ] Configure console logging for development.
-- [ ] Define log formatting.
-- [ ] Add timestamps.
-- [ ] Log application startup and shutdown.
-- [ ] Log important workflow stages.
-- [ ] Log exceptions with useful context.
-- [ ] Decide on log rotation/retention.
+#### 3.1. Confirm Zoho API requirements
 
-### Expected result
+- [ ] Verify the current Zoho Mail API and OAuth requirements for the target account and region.
+- [ ] Confirm required OAuth scopes and application registration settings.
+- [ ] Define where client credentials and refresh tokens will be stored.
+- [ ] Document the authorization setup without recording real secrets.
 
-DEApp can explain what happened during an execution without relying on `print()` statements.
+#### 3.2. Implement authentication
+
+- [ ] Implement the Zoho authentication manager.
+- [ ] Obtain and manage access tokens.
+- [ ] Track access-token expiry where required.
+- [ ] Implement refresh-token handling.
+- [ ] Handle authentication errors and invalid/revoked tokens.
+- [ ] Prevent client secrets, authorization codes, access tokens, and refresh tokens from appearing in logs.
+- [ ] Test token acquisition, expiration handling, and refresh behavior independently.
+
+#### 3.3. Define email identification rules
+
+- [ ] Establish deterministic identification criteria for each of the four email types.
+- [ ] Confirm the relevant sender, subject, folder, date, patterns, or combinations of criteria.
+- [ ] Define expected behavior when no message matches.
+- [ ] Define expected behavior when multiple messages match.
+- [ ] Define how duplicate messages are recognized and handled.
+
+Do not implement guessed matching rules. Resolve these requirements before depending on the retrieval results.
+
+#### 3.4. Implement the Zoho Mail client
+
+- [ ] Implement email search over the resolved date range.
+- [ ] Retrieve required message metadata and content.
+- [ ] Handle API failures, timeouts, rate limits, and authorization errors as appropriate.
+- [ ] Handle missing and multiple matching emails according to the agreed rules.
+- [ ] Add useful, secret-safe logging.
+- [ ] Test retrieval using controlled test messages or mocked API responses.
+
+### Acceptance criteria
+
+- DEApp can authenticate with Zoho using the approved credential and token flow.
+- Expired access tokens are handled correctly.
+- The client retrieves the expected messages for a specified period.
+- Missing messages, multiple matches, and API failures have defined behavior.
+- Credentials and tokens are not exposed in logs.
+
+**Deliverable:** A tested Zoho integration.
 
 ---
 
-# Phase 6 — Application Locking
+# Phase 4 — Email Models, Parsing and Business Logic
 
-### Objectives
+### Objective
 
-Prevent multiple DEApp instances from running simultaneously.
-
-### Scenarios to protect against
-
-- Manual execution while Task Scheduler is running.
-- Two command windows launching DEApp.
-- Task Scheduler starting while a previous execution is still running.
-- Accidental double-click execution of the executable.
+Convert retrieved emails into validated, structured data that can be consumed by the Excel layer.
 
 ### Tasks
 
-- [ ] Implement a Windows application-wide lock.
-- [ ] Acquire the lock at application startup.
-- [ ] Exit cleanly if another instance owns the lock.
-- [ ] Release the lock when execution finishes.
-- [ ] Test normal and abnormal termination behavior.
+#### 4.1. Define data models
 
-### Expected result
+- [ ] Define the email model.
+- [ ] Define the extracted-data model.
+- [ ] Define parser result representations.
+- [ ] Establish field types, required fields, and validation rules.
+- [ ] Define how validation errors are reported to the workflow.
+- [ ] Ensure model interfaces are suitable for the Excel layer.
 
-Only one DEApp execution can be active at a time.
+#### 4.2. Document and implement the four parsers
+
+For each email type:
+
+- [ ] Obtain representative email samples.
+- [ ] Document the expected email structure.
+- [ ] Confirm the fields to extract and their meanings.
+- [ ] Implement the corresponding dedicated parser.
+- [ ] Validate required fields and data types.
+- [ ] Handle missing fields, malformed content, and unexpected formatting.
+- [ ] Add unit tests using representative and invalid samples.
+
+The parser modules are:
+
+- `parser_1.py`
+- `parser_2.py`
+- `parser_3.py`
+- `parser_4.py`
+
+Each parser should only interpret its specific email format and return structured data. It must not download Dropbox files, modify Excel, control the GUI, or manage scheduling.
+
+#### 4.3. Implement extraction validation and business rules
+
+- [ ] Implement selection of the appropriate parser for each identified email type.
+- [ ] Validate parser output before it proceeds to workbook processing.
+- [ ] Define how invalid records are handled.
+- [ ] Define duplicate-record handling where applicable.
+- [ ] Define the behavior when expected emails or required fields are missing.
+- [ ] Prevent invalid or incomplete data from silently proceeding.
+- [ ] Ensure extraction failures are visible in logs and workflow results.
+
+#### 4.4. Test extraction independently
+
+- [ ] Test each parser's normal cases.
+- [ ] Test missing and malformed fields.
+- [ ] Test unexpected email formatting.
+- [ ] Verify extracted values against source samples.
+- [ ] Test parser selection and combined extraction.
+- [ ] Ensure tests do not require live Zoho credentials.
+
+### Acceptance criteria
+
+- Each target email type has a dedicated, independently tested parser.
+- Extracted data matches the agreed field definitions.
+- Invalid or incomplete data is reported explicitly.
+- Parser output has a stable structure suitable for workbook updates.
+
+**Deliverable:** Four tested parsers and a validated extraction layer.
 
 ---
 
-# Phase 7 — Application Workflow
+# Phase 5 — Dropbox and Excel Integration
 
-### Objectives
+### Objective
 
-Create the central orchestration layer.
+Implement and test workbook retrieval, local modification, validation, and transfer independently of the full application workflow.
 
-### Target workflow
+### Tasks
+
+#### 5.1. Implement Dropbox authentication and access
+
+- [ ] Confirm current Dropbox API requirements.
+- [ ] Implement Dropbox authentication using the approved secret-storage approach.
+- [ ] Configure the target workbook path.
+- [ ] Handle authentication, permissions, missing-file, network, and API errors.
+- [ ] Test access to the intended file without modifying the production workbook.
+
+#### 5.2. Implement workbook download and upload
+
+- [ ] Download the workbook to a controlled temporary location.
+- [ ] Handle incomplete or failed downloads.
+- [ ] Implement workbook upload.
+- [ ] Handle failed or interrupted uploads.
+- [ ] Verify upload success where appropriate.
+- [ ] Implement safe temporary-file cleanup.
+- [ ] Keep test files and production files clearly separated.
+
+#### 5.3. Confirm workbook requirements
+
+Before implementing workbook mutations:
+
+- [ ] Identify the actual workbook structure.
+- [ ] Confirm required worksheet names.
+- [ ] Confirm tables, columns, ranges, and formulas involved.
+- [ ] Define where each parser's data belongs.
+- [ ] Define whether existing data is appended, overwritten, or transformed.
+- [ ] Define how duplicate rows and existing records are handled.
+- [ ] Define workbook validation criteria.
+
+Do not infer workbook structure or mutation rules from filenames or assumptions.
+
+#### 5.4. Implement Excel operations
+
+Use `xlwings` to:
+
+- [ ] Open the downloaded workbook.
+- [ ] Locate required worksheets and ranges.
+- [ ] Apply the agreed data updates.
+- [ ] Save the workbook.
+- [ ] Close the workbook and release Excel resources.
+- [ ] Handle missing sheets, ranges, and tables.
+- [ ] Handle workbook locks, Excel failures, and corrupted files.
+- [ ] Ensure local modifications do not directly change the production Dropbox file.
+
+#### 5.5. Implement workbook validation
+
+- [ ] Validate required workbook structure.
+- [ ] Validate expected changes after modification.
+- [ ] Check that required data was written to the intended locations.
+- [ ] Detect invalid or incomplete workbook output.
+- [ ] Prevent a workbook that fails validation from being considered ready for upload.
+
+#### 5.6. Test Dropbox and Excel separately
+
+- [ ] Test download and upload with a test workbook.
+- [ ] Test Excel opening, updating, saving, and closing.
+- [ ] Test missing worksheets and invalid workbook structures.
+- [ ] Test failure cleanup.
+- [ ] Use an explicitly configured test Dropbox location for integration tests.
+
+`xlwings` automates Microsoft Excel, so the target Windows environment must have a compatible Excel installation.
+
+### Acceptance criteria
+
+- DEApp can download a test workbook, modify it according to confirmed requirements, validate it, and upload it to a test Dropbox location.
+- Workbook and Excel resources are closed safely.
+- Failures are reported without modifying the production workbook.
+
+**Deliverable:** Independently tested Dropbox and Excel components.
+
+---
+
+# Phase 6 — End-to-End Application Workflow
+
+### Objective
+
+Integrate configuration, date resolution, Zoho retrieval, parsing, validation, Excel updates, Dropbox transfer, and execution-state management into the complete business workflow.
+
+### Tasks
+
+#### 6.1. Implement workflow orchestration
+
+Implement the following sequence:
 
 ```text
 Start
-  ↓
-Validate configuration
-  ↓
-Determine dates
-  ↓
+  |
+  v
+Load and validate configuration
+  |
+  v
+Resolve processing date range
+  |
+  v
 Acquire application lock
-  ↓
+  |
+  v
 Authenticate with Zoho
-  ↓
+  |
+  v
 Retrieve required emails
-  ↓
-Parse emails
-  ↓
-Validate extracted data
-  ↓
-Download Excel workbook
-  ↓
-Update workbook
-  ↓
-Validate workbook
-  ↓
+  |
+  v
+Parse emails and validate extracted data
+  |
+  v
+Download workbook from Dropbox
+  |
+  v
+Create/use local working copy
+  |
+  v
+Update workbook using Excel
+  |
+  v
+Validate updated workbook
+  |
+  v
 Upload workbook to Dropbox
-  ↓
-Record successful execution
-  ↓
-Notify completion
-  ↓
-Exit
+  |
+  v
+Record successful execution state
+  |
+  v
+Report result and exit
 ```
 
-### Tasks
+The application lock is introduced and fully hardened in Phase 7. The workflow must integrate with the locking component when it is available; it must not create a competing lock mechanism.
 
-- [ ] Implement the application runner.
-- [ ] Implement workflow orchestration.
-- [ ] Define workflow-level exceptions.
-- [ ] Define failure handling.
-- [ ] Ensure successful state is only recorded after successful workbook upload.
-- [ ] Ensure failures do not cause a Dropbox upload.
+#### 6.2. Define workflow outcomes and failure boundaries
 
----
+- [ ] Define successful completion criteria.
+- [ ] Define the failure result for each major stage.
+- [ ] Ensure retrieval, parsing, or validation failures prevent workbook upload.
+- [ ] Ensure workbook modification or validation failures prevent upload.
+- [ ] Ensure upload failure does not advance successful execution state.
+- [ ] Ensure successful execution state is written only after upload succeeds.
+- [ ] Ensure temporary files are cleaned up on success and failure.
+- [ ] Ensure useful error context is available to the caller.
 
-# Phase 8 — Zoho Authentication
+#### 6.3. Enforce the workbook transaction
 
-### Objectives
+The workflow must preserve these invariants:
 
-Implement secure Zoho authentication and token management.
+1. Download the production workbook and work on a local copy.
+2. Do not modify the production Dropbox workbook during local processing.
+3. Validate extracted data before writing it to Excel.
+4. Validate the updated workbook before upload.
+5. Upload only after all required processing and validation succeed.
+6. Do not record successful execution state until the upload succeeds.
+7. If a failure occurs before upload, do not upload the local copy.
+8. If upload fails, do not mark the run successful.
+9. Close Excel resources and clean temporary files safely.
+10. Prevent retries from causing unintended duplicate or destructive updates.
 
-### Credentials/state to handle
+A failed upload may leave uncertainty about whether the remote service received the file. Handle that situation explicitly; do not blindly retry destructive operations or advance state without establishing the outcome.
 
-- `ZOHO_CLIENT_ID`
-- `ZOHO_CLIENT_SECRET`
-- `ZOHO_REDIRECT_URI`
-- `ZOHO_AUTH_CODE`
-- `ZOHO_REFRESH_TOKEN`
-- `ZOHO_ACCESS_TOKEN`
-- `ZOHO_ACCESS_TOKEN_EXPIRES_AT`
+#### 6.4. Test the complete workflow
 
-### Tasks
+- [ ] Test a successful end-to-end run using test emails and a test workbook.
+- [ ] Test failures at each major stage.
+- [ ] Verify no upload occurs after pre-upload failures.
+- [ ] Verify successful state changes only after upload success.
+- [ ] Verify correct processing date ranges.
+- [ ] Verify workbook contents against expected results.
+- [ ] Verify retries do not create unintended duplicate updates.
 
-- [ ] Confirm the current Zoho Mail API and OAuth requirements.
-- [ ] Implement authentication management.
-- [ ] Implement access-token handling.
-- [ ] Implement access-token expiration handling.
-- [ ] Implement refresh-token flow.
-- [ ] Prevent secrets from appearing in logs.
-- [ ] Test authentication independently.
+### Acceptance criteria
 
-### Expected result
+The complete workflow can retrieve, parse, validate, and apply data to a test workbook, upload the validated result, and record success only after the upload succeeds.
 
-The application can obtain a valid Zoho access token when required.
-
----
-
-# Phase 9 — Zoho Mail Integration
-
-### Objectives
-
-Connect to Zoho Mail and retrieve the required emails.
-
-### Tasks
-
-- [ ] Confirm how the four target emails will be identified.
-- [ ] Implement Zoho Mail client.
-- [ ] Implement email search.
-- [ ] Implement email retrieval.
-- [ ] Retrieve required message content.
-- [ ] Handle missing emails.
-- [ ] Handle duplicate/multiple matching emails.
-- [ ] Handle API failures.
-- [ ] Add appropriate logging.
-
-### Important business decision
-
-The exact identification rules for each of the four email types must be finalized before the parsers are implemented.
-
-Possible criteria include:
-
-- sender
-- subject
-- folder
-- date
-- subject pattern
-- sender + subject
-- other deterministic criteria
+**Deliverable:** A functioning end-to-end DEApp core workflow.
 
 ---
 
-# Phase 10 — Email Data Models
+# Phase 7 — Reliability, Logging, Error Handling and GUI
 
-### Objectives
+### Objective
 
-Define structured representations for retrieved emails and extracted data.
-
-### Tasks
-
-- [ ] Define email model.
-- [ ] Define extracted-data model.
-- [ ] Define validation rules.
-- [ ] Define how parser results are represented.
-- [ ] Ensure parser output can be consumed by the Excel layer.
-
----
-
-# Phase 11 — Email Parsers
-
-### Objectives
-
-Implement one parser for each target email type.
-
-### Structure
-
-```text
-parser_1.py
-parser_2.py
-parser_3.py
-parser_4.py
-```
+Harden the working application for reliable manual and unattended execution.
 
 ### Tasks
 
-- [ ] Document the expected structure of email type 1.
-- [ ] Implement parser 1.
-- [ ] Test parser 1 with representative email samples.
+#### 7.1. Implement structured logging
 
-- [ ] Document the expected structure of email type 2.
-- [ ] Implement parser 2.
-- [ ] Test parser 2.
+- [ ] Centralize logging configuration.
+- [ ] Configure file logging and development console logging.
+- [ ] Define log levels, formats, timestamps, and useful workflow context.
+- [ ] Log application startup, shutdown, and major workflow stages.
+- [ ] Capture exceptions with useful context.
+- [ ] Prevent credentials, tokens, and unnecessary sensitive email content from appearing in logs.
+- [ ] Define log rotation and retention.
+- [ ] Test logging for successful and failed runs.
 
-- [ ] Document the expected structure of email type 3.
-- [ ] Implement parser 3.
-- [ ] Test parser 3.
+#### 7.2. Implement application locking
 
-- [ ] Document the expected structure of email type 4.
-- [ ] Implement parser 4.
-- [ ] Test parser 4.
+- [ ] Implement a Windows-compatible application-wide lock.
+- [ ] Acquire the lock early enough to prevent overlapping processing.
+- [ ] Exit cleanly when another instance owns the lock.
+- [ ] Release the lock on normal completion.
+- [ ] Handle abnormal termination and stale-lock scenarios safely.
+- [ ] Test concurrent manual and scheduled execution.
 
-### Important rule
+#### 7.3. Standardize error handling and exit codes
 
-Each parser should focus on converting its specific email format into structured application data.
+- [ ] Define the application exception hierarchy.
+- [ ] Define consistent exit codes.
+- [ ] Provide actionable user-facing error messages.
+- [ ] Ensure exceptions are logged without leaking secrets.
+- [ ] Test failure handling at each major workflow stage.
+- [ ] Verify that failure paths do not upload invalid workbooks or advance successful state.
 
-It should not:
+#### 7.4. Implement the minimal GUI
 
-- download Dropbox files
-- modify Excel
-- control the GUI
-- manage application scheduling
-
----
-
-# Phase 12 — Dropbox Integration
-
-### Objectives
-
-Implement Dropbox workbook synchronization.
-
-### Tasks
-
-- [ ] Confirm Dropbox API requirements.
-- [ ] Implement Dropbox authentication.
-- [ ] Implement workbook download.
-- [ ] Store downloaded workbook in a temporary location.
-- [ ] Implement upload.
-- [ ] Handle upload failures.
-- [ ] Handle download failures.
-- [ ] Verify the uploaded result where appropriate.
-- [ ] Clean temporary files.
-
-### Transaction rule
-
-The original Dropbox workbook must remain unchanged if processing fails before the upload step.
-
----
-
-# Phase 13 — Excel Integration
-
-### Objectives
-
-Implement workbook manipulation using `xlwings`.
-
-### Tasks
-
-- [ ] Confirm Microsoft Excel requirements.
-- [ ] Implement workbook opening.
-- [ ] Implement workbook modification.
-- [ ] Implement workbook saving.
-- [ ] Implement proper workbook closing.
-- [ ] Handle Excel process failures.
-- [ ] Handle workbook lock/open conflicts.
-- [ ] Handle missing sheets.
-- [ ] Handle missing cells/tables/ranges.
-- [ ] Handle corrupted workbooks.
-- [ ] Validate workbook contents after modification.
-
-### Important dependency
-
-Because `xlwings` controls Microsoft Excel, the target Windows machine will require a compatible Microsoft Excel installation.
-
----
-
-# Phase 14 — Excel/Dropbox Transaction
-
-### Objectives
-
-Combine the Excel and Dropbox operations safely.
-
-### Target behavior
-
-```text
-Download workbook
-      ↓
-Create local working copy
-      ↓
-Modify workbook
-      ↓
-Validate workbook
-      ↓
-Everything successful?
-   /             NO              YES
- ↓                ↓
-Discard          Upload
-local copy       to Dropbox
-                  ↓
-               Success
-```
-
-### Tasks
-
-- [ ] Implement local working copy.
-- [ ] Ensure original Dropbox file is not modified during processing.
-- [ ] Validate workbook before upload.
-- [ ] Upload only after validation succeeds.
-- [ ] Handle upload failure safely.
-- [ ] Clean temporary files.
-- [ ] Record successful execution only after upload succeeds.
-
----
-
-# Phase 15 — Minimal GUI
-
-### Objectives
-
-Provide a minimal visual interface showing execution progress.
-
-### GUI responsibilities
-
-The GUI should display status, not perform business logic.
-
-### Example statuses
+Use Tkinter to display status and progress, for example:
 
 ```text
 Starting DEApp
 Connecting to Zoho
 Retrieving emails
-Processing email 1 of 4
-Processing email 2 of 4
-Processing email 3 of 4
-Processing email 4 of 4
+Processing emails
 Downloading workbook
 Updating Excel
 Validating workbook
@@ -535,270 +581,226 @@ Uploading workbook
 Execution completed
 ```
 
-### Tasks
+- [ ] Implement the status window.
+- [ ] Display meaningful progress and completion/failure status.
+- [ ] Keep business logic outside the GUI.
+- [ ] Handle window closure and cancellation safely.
+- [ ] Ensure closing or cancelling cannot cause an invalid workbook to be uploaded.
+- [ ] Ensure manual and scheduled execution use the same underlying workflow.
+- [ ] Define behavior when a GUI cannot be displayed in the execution environment.
 
-- [ ] Implement Tkinter window.
-- [ ] Display application status.
-- [ ] Display progress.
-- [ ] Handle application completion.
-- [ ] Handle user closing the window.
-- [ ] Ensure closing/cancellation does not cause an invalid Dropbox update.
-- [ ] Ensure scheduled executions also display the window.
+#### 7.5. Improve recovery and retry safety
 
----
+- [ ] Handle interrupted runs without falsely advancing state.
+- [ ] Define how a subsequent run resumes or repeats work.
+- [ ] Prevent duplicate workbook updates on retries.
+- [ ] Handle uncertain upload outcomes explicitly.
+- [ ] Verify temporary-file and Excel-process cleanup after failure.
+- [ ] Test recovery after abnormal termination.
 
-# Phase 16 — Error Handling and Exit Codes
+#### 7.6. Expand automated testing
 
-### Objectives
+- [ ] Complete unit tests for CLI, dates, configuration, state, models, parsers, validation, locking, and workflow behavior.
+- [ ] Complete integration tests for Zoho, Dropbox, and Excel.
+- [ ] Test successful and failed end-to-end executions.
+- [ ] Test concurrent execution prevention.
+- [ ] Test date boundaries and state recovery.
+- [ ] Test that integration tests cannot accidentally overwrite the production workbook.
 
-Make failures predictable and diagnosable.
+### Acceptance criteria
 
-### Tasks
+- Failures are diagnosable from logs and exit codes.
+- Concurrent executions are prevented.
+- GUI status reflects workflow progress without owning business logic.
+- Interrupted and failed runs do not incorrectly advance state or upload invalid workbooks.
+- Relevant automated tests pass.
 
-- [ ] Define application exception hierarchy.
-- [ ] Define standard exit codes.
-- [ ] Log exceptions.
-- [ ] Display appropriate user-facing errors.
-- [ ] Ensure failed executions do not update successful state.
-- [ ] Ensure failed executions do not upload invalid workbooks.
-- [ ] Test failures at each major workflow stage.
-
----
-
-# Phase 17 — Unit Testing
-
-### Objectives
-
-Test individual components independently.
-
-### Areas
-
-- [ ] CLI argument parsing.
-- [ ] Date handling.
-- [ ] State management.
-- [ ] Application locking.
-- [ ] Configuration loading.
-- [ ] Email models.
-- [ ] Parser 1.
-- [ ] Parser 2.
-- [ ] Parser 3.
-- [ ] Parser 4.
-- [ ] Workflow logic.
-- [ ] Error handling.
+**Deliverable:** A robust application ready for controlled production acceptance testing.
 
 ---
 
-# Phase 18 — Integration Testing
+# Phase 8 — Documentation, Scheduling, Packaging and Deployment
 
-### Objectives
+### Objective
 
-Test communication between DEApp and external systems.
-
-### Areas
-
-- [ ] Zoho authentication.
-- [ ] Zoho Mail retrieval.
-- [ ] Dropbox authentication.
-- [ ] Dropbox download.
-- [ ] Excel processing.
-- [ ] Dropbox upload.
-- [ ] End-to-end workflow.
-
-### Safety requirement
-
-Integration tests should not accidentally overwrite the production Dropbox workbook.
-
-Use test accounts/files or an explicitly configured test environment.
-
----
-
-# Phase 19 — Windows Task Scheduler
-
-### Objectives
-
-Configure automatic execution.
-
-### Required behavior
-
-DEApp should run automatically every day at approximately 08:30.
-
-If the computer was unavailable at the scheduled time, Windows Task Scheduler should be configured to run the task at the next available opportunity.
+Prepare DEApp for regular operation on its intended Windows machine.
 
 ### Tasks
 
-- [ ] Create Task Scheduler configuration.
-- [ ] Configure daily trigger.
+#### 8.1. Complete project documentation
+
+- [ ] Update `README.md` with installation and execution instructions.
+- [ ] Document the architecture and module responsibilities.
+- [ ] Document configuration variables without exposing real secrets.
+- [ ] Document credential and token setup.
+- [ ] Document CLI arguments and date behavior.
+- [ ] Document workbook assumptions and update rules.
+- [ ] Document logging, state storage, troubleshooting, and recovery.
+- [ ] Keep documentation consistent with verified implementation.
+- [ ] Mark unresolved decisions clearly rather than presenting assumptions as requirements.
+
+#### 8.2. Configure Windows Task Scheduler
+
+The intended target is daily execution at approximately **08:30**, with a missed-start configuration that allows execution at the next available opportunity.
+
+- [ ] Create or document the scheduled task configuration.
+- [ ] Configure the daily trigger.
 - [ ] Configure missed-start behavior.
-- [ ] Configure executable path.
-- [ ] Configure working directory.
+- [ ] Configure the executable path and working directory.
 - [ ] Configure execution permissions.
-- [ ] Configure behavior when the application is already running.
-- [ ] Test scheduled execution.
+- [ ] Configure behavior when DEApp is already running.
+- [ ] Verify access to configuration, secrets, logs, state, Dropbox, and Excel under the scheduled account.
+- [ ] Test normal scheduled execution.
 - [ ] Test missed execution.
 - [ ] Test failure during scheduled execution.
 
----
+#### 8.3. Package the Windows executable
 
-# Phase 20 — Packaging as Windows Executable
+Use PyInstaller or another explicitly approved packaging approach.
 
-### Objectives
+- [ ] Configure the application entry point.
+- [ ] Include required Python dependencies and package resources.
+- [ ] Handle configuration files and runtime directories.
+- [ ] Keep secrets external to the executable.
+- [ ] Ensure logs, temporary files, and state use appropriate runtime paths.
+- [ ] Build the executable.
+- [ ] Test the packaged application independently of the development environment.
 
-Package DEApp for deployment as a Windows executable.
+#### 8.4. Verify packaged behavior
 
-### Tasks
+- [ ] Test on the target Windows environment.
+- [ ] Verify `xlwings` and Microsoft Excel behavior.
+- [ ] Verify Zoho authentication and mail retrieval.
+- [ ] Verify Dropbox download and upload.
+- [ ] Verify state persistence and logging.
+- [ ] Verify application locking.
+- [ ] Verify the GUI in the intended execution context.
+- [ ] Verify Task Scheduler launches the packaged executable correctly.
 
-- [ ] Select/configure PyInstaller.
-- [ ] Configure application entry point.
-- [ ] Include required Python dependencies.
-- [ ] Include required package resources.
-- [ ] Handle configuration files.
-- [ ] Handle `.env`/secrets appropriately.
-- [ ] Handle runtime directories.
-- [ ] Test packaged application.
-- [ ] Test the `.exe` on a clean Windows environment.
-- [ ] Test `xlwings`/Excel behavior from the packaged application.
-- [ ] Test Task Scheduler using the packaged executable.
+#### 8.5. Perform production acceptance testing
 
-### Expected result
-
-A deployable Windows application such as:
-
-```text
-DEApp.exe
-```
-
-can execute the same application workflow without requiring the user to manually run Python source code.
-
----
-
-# Phase 21 — Deployment and Operational Verification
-
-### Objectives
-
-Verify DEApp in its actual production environment.
-
-### Tasks
-
-- [ ] Install DEApp on the target Windows machine.
-- [ ] Configure credentials.
-- [ ] Configure Dropbox path.
-- [ ] Configure workbook location.
-- [ ] Configure logs.
-- [ ] Configure state storage.
-- [ ] Configure Task Scheduler.
-- [ ] Run a manual test.
-- [ ] Run a scheduled test.
-- [ ] Verify workbook output.
-- [ ] Verify logs.
-- [ ] Verify successful execution state.
-- [ ] Verify failure recovery.
+- [ ] Configure production credentials using the approved method.
+- [ ] Configure the production workbook path.
+- [ ] Run a controlled manual execution.
+- [ ] Verify workbook output independently.
+- [ ] Verify logs and successful execution state.
+- [ ] Run a scheduled execution.
+- [ ] Test a failed run and recovery.
+- [ ] Test missed scheduled execution.
 - [ ] Verify duplicate execution prevention.
+- [ ] Confirm that the production workbook is only updated after successful processing and validation.
+- [ ] Record any operational limitations and the recovery procedure.
+
+### Acceptance criteria
+
+- DEApp is documented, packaged, and configured for scheduled execution.
+- Manual and scheduled runs behave consistently.
+- Production acceptance tests verify workbook correctness, logging, state, and failure recovery.
+- The application is ready for routine operation in the target environment.
+
+**Deliverable:** A deployable Windows application verified in its intended production environment.
 
 ---
 
-# 4. Final Target Architecture
+## 5. Cross-Phase Safety and Quality Requirements
 
-The final workflow should approximately follow:
+These requirements apply throughout development, not only in the phase where they are introduced.
 
-```text
-User / Windows Task Scheduler
-              |
-              v
-        DEApp Entry Point
-              |
-              v
-       CLI / Execution Setup
-              |
-              v
-       Application Runner
-              |
-              v
-       Application Workflow
-              |
-     +--------+--------+
-     |        |        |
-     v        v        v
-   Zoho    Parsers   State
-     |        |
-     v        v
-  Emails   Structured Data
-              |
-              v
-          Dropbox
-              |
-              v
-       Local Workbook
-              |
-              v
-            Excel
-           xlwings
-              |
-              v
-      Validated Workbook
-              |
-              v
-      Upload to Dropbox
-              |
-              v
-      Save Success State
-              |
-              v
-         GUI / Logging
-              |
-              v
-             Exit
-```
+### Secrets and privacy
+
+- Never commit credentials, authorization codes, access tokens, refresh tokens, or `.env` files.
+- Use safe placeholders in example configuration.
+- Do not log secrets or unnecessary sensitive email content.
+- Use test data in tests and documentation.
+
+### Workbook protection
+
+- Perform workbook changes on a local working copy.
+- Validate extracted data before modifying the workbook.
+- Validate workbook contents before upload.
+- Do not upload after a pre-upload failure.
+- Do not mark an execution successful after an upload failure.
+- Test integration behavior against a test workbook and test Dropbox location.
+
+### State correctness
+
+- Keep configuration separate from execution state.
+- Define the state schema and date-boundary semantics.
+- Do not advance successful state until the workbook upload succeeds.
+- Handle corrupted state explicitly rather than silently resetting it.
+
+### Code quality
+
+- Use Python 3.14-compatible type annotations in new and modified code.
+- Add useful docstrings and comments that explain non-obvious decisions.
+- Keep modules focused on their defined responsibilities.
+- Avoid unnecessary dependencies and unrelated refactoring.
+- Add or update tests for meaningful behavior changes.
+- Keep documentation synchronized with implementation.
+
+### Change management
+
+- Inspect the working tree and relevant diffs before editing.
+- Preserve unrelated user changes.
+- Do not reset, clean, force-push, rewrite history, commit, or change remote settings unless explicitly requested.
+- Review the final diff for unintended changes and accidentally included secrets.
+- Report which tests and checks were actually run.
 
 ---
 
-# 5. Important Business Decisions Still To Be Finalized
+## 6. Business Decisions to Finalize
 
-Before implementing the corresponding components, we need to establish:
+The following decisions must be resolved before implementing the components that depend on them:
 
-1. Exact identification rules for each of the four emails.
-2. What happens when one or more expected emails are missing.
-3. Exact data extracted by each parser.
-4. Exact Excel workbook structure.
-5. Which sheets, tables, cells, or ranges are updated.
-6. Whether existing Excel data is appended, overwritten, or otherwise modified.
-7. Exact behavior when the user closes the GUI during processing.
-8. Exact date-range inclusivity rules.
-9. Exact behavior when a previous execution failed.
-10. Exact Dropbox workbook path.
-11. Exact Zoho Mail folder/mailbox locations.
-12. Exact logging retention requirements.
-13. Exact production configuration and secret-storage strategy.
+1. Exact identification criteria for each of the four email types.
+2. Required fields and extraction rules for each parser.
+3. Behavior when expected emails are missing.
+4. Behavior when multiple messages match or duplicate messages are found.
+5. Validation and handling of malformed or incomplete email data.
+6. Exact workbook path in Dropbox.
+7. Workbook worksheet names, tables, columns, formulas, and ranges that will be changed.
+8. Whether data is appended, overwritten, or otherwise transformed.
+9. Duplicate-row and repeated-processing rules.
+10. Date-range inclusivity and interpretation of the last successful execution date.
+11. Behavior after a failed or interrupted run.
+12. Secure production credential and token-storage approach.
+13. Logging retention requirements.
+14. GUI closure and cancellation behavior, beyond the invariant that cancellation must not upload an invalid workbook.
+15. Exact Task Scheduler settings and production execution account.
+16. Target Windows and Microsoft Excel environment.
 
-These decisions should be resolved before implementing the affected components.
+Resolve these decisions with explicit requirements or representative samples. Do not invent values or rules to make implementation appear complete.
 
 ---
 
-# 6. Development Order
+## 7. Development and Verification Procedure
 
-The recommended implementation order is:
+For every implementation task:
 
-```text
-1.  Project setup
-2.  Configuration
-3.  State management
-4.  CLI and date handling
-5.  Logging
-6.  Application locking
-7.  Application workflow
-8.  Zoho authentication
-9.  Zoho Mail integration
-10. Email models
-11. Email parsers
-12. Dropbox integration
-13. Excel integration
-14. Transactional workflow
-15. GUI
-16. Error handling refinement
-17. Unit tests
-18. Integration tests
-19. Windows Task Scheduler
-20. PyInstaller packaging
-21. Deployment
-```
+1. Identify the current phase and its acceptance criteria.
+2. Inspect the relevant source files, tests, configuration, and documentation.
+3. Identify ambiguities and risks before making consequential assumptions.
+4. Implement the smallest coherent change that advances the current phase.
+5. Add or update tests.
+6. Run the most relevant tests and available static checks.
+7. Inspect the final diff for regressions, unrelated edits, secrets, and documentation drift.
+8. Report what changed, what was verified, which commands were run, and what remains unresolved.
 
-We will implement and test each phase before moving to the next major phase.
+Do not mark a phase complete solely because its files exist. Mark it complete only when its acceptance criteria have been met and verified.
+
+---
+
+## 8. Phase Summary
+
+| Phase | Name | Completion milestone |
+|---|---|---|
+| 1 | Project Foundation and Configuration | The application starts and loads validated settings. |
+| 2 | CLI, Dates and Execution State | Processing periods are resolved correctly and state persists safely. |
+| 3 | Zoho Authentication and Mail Integration | The application authenticates and retrieves the required emails. |
+| 4 | Email Models, Parsing and Business Logic | Four tested parsers produce validated structured data. |
+| 5 | Dropbox and Excel Integration | The application can safely modify and transfer a test workbook. |
+| 6 | End-to-End Application Workflow | All major components complete the business process together. |
+| 7 | Reliability, Logging, Error Handling and GUI | The application is diagnosable, prevents concurrent runs, and handles failures safely. |
+| 8 | Documentation, Scheduling, Packaging and Deployment | The application is verified for scheduled production operation. |
+
+The development order deliberately postpones full operational hardening, GUI work, scheduling, and packaging until the core processing layers work. However, production-data safety, secure secret handling, testability, and correct successful-state semantics must be respected from the beginning.

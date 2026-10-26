@@ -1,0 +1,2 @@
+[console_scripts]
+deapp = deapp.__main__:main

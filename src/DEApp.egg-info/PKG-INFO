@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: DEApp
+Version: 0.1.0
+Summary: Data Extraction Application for automated email data extraction and Excel workbook updating.
+Author: Idorenyin Umoh
+Requires-Python: >=3.14.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Dynamic: license-file

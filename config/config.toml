@@ -1,0 +1,11 @@
+[application]
+name = "DEApp"
+log_level = "INFO"
+
+[paths]
+state_file = "data/state.json"
+log_file = "logs/deapp.log"
+
+# Paths are relative to the project root inferred from the config file location. No workbook
+# path or email-matching rules are included because the plan says those still need to be 
+# confirmed.

@@ -5,21 +5,9 @@ from pathlib import Path
 import tomllib
 
 
-# Settings is the typed container for validated, non-secret configuration. load_settings()
-# reads config/config.toml, checks that required values are valid, resolves the configured 
-# paths, and returns a Settings instance.
-# The application entry point would load it once at startup
-
-# Then pass settings to the parts of the application that need it:
-# - Logging setup uses settings.log_level and settings.log_file.
-# - State management uses settings.state_file.
-# - Application orchestration can receive settings and pass relevant settings to the services
-# it starts.
-
-# create a dataclass and make its instances immutable after creation.
 @dataclass(frozen=True)
 class Settings:
-    """Validated settings that describe how DEApp runs."""
+    """Validated non-secret settings used by the application."""
 
     app_name: str
     log_level: str
@@ -27,12 +15,28 @@ class Settings:
     log_file: Path
 
 
-def load_settings(config_path: Path | None = None) -> Settings:
-    """Load settings from TOML and resolve configured paths.
+def _require_non_empty_string(
+    section: dict[str, object],
+    key: str,
+    setting_name: str,
+) -> str:
+    """Return a non-empty string setting or raise a named validation error."""
+    value = section.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Missing or invalid setting: {setting_name}")
+    return value.strip()
 
-    Relative paths are resolved from the project root, taken as the
-    parent directory of the config directory.
-    """
+
+def _resolve_path(value: str, project_root: Path) -> Path:
+    """Resolve a configured path relative to the project root if needed."""
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return (project_root / path).resolve()
+
+
+def load_settings(config_path: Path | None = None) -> Settings:
+    """Load TOML settings, validate them, and resolve configured paths."""
     if config_path is None:
         config_path = Path("config/config.toml")
 
@@ -40,56 +44,39 @@ def load_settings(config_path: Path | None = None) -> Settings:
 
     try:
         with config_path.open("rb") as config_file:
-            raw = tomllib.load(config_file) 
+            raw: dict[str, object] = tomllib.load(config_file)
     except FileNotFoundError as error:
         raise ValueError(f"Configuration file not found: {config_path}") from error
     except tomllib.TOMLDecodeError as error:
         raise ValueError(f"Configuration file is invalid TOML: {config_path}") from error
 
-    application = raw.get("application")
-    paths = raw.get("paths")
+    application_value = raw.get("application")
+    paths_value = raw.get("paths")
 
-    if not isinstance(application, dict):
+    if not isinstance(application_value, dict):
         raise ValueError("Missing or invalid [application] section")
-    if not isinstance(paths, dict):
+    if not isinstance(paths_value, dict):
         raise ValueError("Missing or invalid [paths] section")
 
-    app_name: str | None = application.get("name")
-    log_level: str | None = application.get("log_level")
-    state_file_value: str | None = paths.get("state_file")
-    log_file_value: str | None = paths.get("log_file")
+    application: dict[str, object] = application_value
+    paths: dict[str, object] = paths_value
 
-    missing = [
-        name
-        for name, value in (
-            ("application.name", app_name),
-            ("application.log_level", log_level),
-            ("paths.state_file", state_file_value),
-            ("paths.log_file", log_file_value),
-        )
-        if not isinstance(value, str) or not value.strip()
-    ] # ensure we got the appropriate configurations and as non-empty strings
+    app_name = _require_non_empty_string(application, "name", "application.name")
+    log_level = _require_non_empty_string(
+        application, "log_level", "application.log_level"
+    ).upper()
+    state_file = _require_non_empty_string(paths, "state_file", "paths.state_file")
+    log_file = _require_non_empty_string(paths, "log_file", "paths.log_file")
 
-    if missing:
-        raise ValueError(f"Missing or invalid settings: {', '.join(missing)}")
-
-    normalized_log_level = log_level.upper()
-
-    if normalized_log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+    allowed_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+    if log_level not in allowed_log_levels:
         raise ValueError("Invalid setting: application.log_level")
-
 
     PROJECT_ROOT = config_path.parent.parent
 
-    def resolve_path(value: str) -> Path:
-        path = Path(value)
-        if path.is_absolute():
-            return path
-        return (PROJECT_ROOT / path).resolve()
-
     return Settings(
         app_name=app_name,
-        log_level=normalized_log_level,
-        state_file=resolve_path(state_file_value),
-        log_file=resolve_path(log_file_value),
+        log_level=log_level,
+        state_file=_resolve_path(state_file, PROJECT_ROOT),
+        log_file=_resolve_path(log_file, PROJECT_ROOT),
     )

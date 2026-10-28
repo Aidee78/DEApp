@@ -3,7 +3,6 @@
 import os
 from collections.abc import Mapping
 
-# Mapping is a type annotation for a read-only mapping, such as a dictionary.
 
 def load_secrets(
     required_names: tuple[str, ...],
@@ -11,7 +10,8 @@ def load_secrets(
 ) -> dict[str, str]:
     """Return required secrets or report missing variable names.
 
-    Secret values are never included in validation errors.
+    Values are read from the process environment by default. Supplying
+    ``environ`` makes the function straightforward to test.
     """
     source = os.environ if environ is None else environ
 
@@ -25,9 +25,9 @@ def load_secrets(
             f"Missing required environment variables: {', '.join(missing)}"
         )
 
-    return {name: source[name] for name in required_names}
+    return {name: source[name].strip() for name in required_names}
 
-
+# Use case exmaple:
 # zoho_secrets = load_secrets(
 #     ("ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_REFRESH_TOKEN")
 # )

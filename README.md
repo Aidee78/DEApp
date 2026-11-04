@@ -15,3 +15,13 @@ From the project root, create and activate a virtual environment:
 ```powershell
 py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+
+## Command-line date options
+
+DEApp accepts optional start and end dates:
+
+```powershell
+python -m deapp
+python -m deapp --start-date 2026-10-01
+python -m deapp --end-date 2026-10-15
+python -m deapp --start-date 2026-10-01 --end-date 2026-10-15

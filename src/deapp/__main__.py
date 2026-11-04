@@ -2,18 +2,22 @@
 
 import sys
 
-from deapp.config import load_settings
+from deapp.application.runner import prepare_execution
+from deapp.state.state_manager import StateError
 
 
 def main() -> int:
-    """Load configuration and report whether application startup can proceed."""
+    """Resolve and display the requested processing period."""
     try:
-        settings = load_settings()
-    except ValueError as error:
-        print(f"DEApp configuration error: {error}", file=sys.stderr)
+        start_date, end_date = prepare_execution()
+    except (StateError, ValueError) as error:
+        print(f"DEApp startup error: {error}", file=sys.stderr)
         return 2
 
-    print(f"{settings.app_name} started successfully.")
+    print(
+        "Resolved processing date range: "
+        f"{start_date.isoformat()} through {end_date.isoformat()}"
+    )
     return 0
 
 

@@ -17,6 +17,7 @@ src/deapp/cli/__init__.py
 src/deapp/cli/arguments.py
 src/deapp/config/__init__.py
 src/deapp/config/environment.py
+src/deapp/config/secret_store.py
 src/deapp/config/settings.py
 src/deapp/gui/__init__.py
 src/deapp/gui/status.py

@@ -6,6 +6,8 @@ Author: Idorenyin Umoh
 Requires-Python: >=3.14.7
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: requests>=2.32.0
+Requires-Dist: python-dotenv>=1.0.1
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-cov>=5.0; extra == "dev"
@@ -28,3 +30,13 @@ From the project root, create and activate a virtual environment:
 ```powershell
 py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+
+## Command-line date options
+
+DEApp accepts optional start and end dates:
+
+```powershell
+python -m deapp
+python -m deapp --start-date 2026-10-01
+python -m deapp --end-date 2026-10-15
+python -m deapp --start-date 2026-10-01 --end-date 2026-10-15

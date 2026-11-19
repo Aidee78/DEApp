@@ -10,7 +10,7 @@ The application is intended to:
 - Run automatically through Windows Task Scheduler, targeting approximately 08:30 daily.
 - Determine the appropriate processing date range for each execution.
 - Authenticate securely with Zoho Mail and retrieve the required emails.
-- Parse each email type with its own dedicated parser.
+- Parse the four email types with one generic parser because their formats and extraction rules are substantially the same. Confirm that the shared parser handles each type using representative samples.
 - Validate extracted data before using it to update the workbook.
 - Download the target Excel workbook from Dropbox to a local working location.
 - Modify the workbook using `xlwings` and Microsoft Excel.
@@ -67,10 +67,7 @@ DEApp/
     ├── logging/
     ├── models/
     ├── parsers/
-    │   ├── parser_1.py
-    │   ├── parser_2.py
-    │   ├── parser_3.py
-    │   └── parser_4.py
+    │   └── report_parser.py  # Generic parser for the four similar email types
     ├── services/
     │   ├── dropbox/
     │   ├── excel/
@@ -88,14 +85,14 @@ Module responsibilities:
 - `locking/`: single-instance coordination.
 - `logging/`: centralized logging configuration.
 - `models/`: structured email and extracted-data representations.
-- `parsers/`: one parser per target email type.
+- `parsers/`: generic email parsing and shared parsing helpers; use one parser for the four similar email types, with explicit type-specific handling only where verified samples require it.
 - `services/zoho/`: Zoho OAuth and Mail API integration.
 - `services/dropbox/`: Dropbox authentication and file transfer.
 - `services/excel/`: workbook manipulation and validation.
 - `state/`: persistent successful-execution state.
 - `utils/`: small, reusable helpers with clear responsibilities.
 
-Parsers must not call Zoho, Dropbox, or Excel directly, control the GUI, or manage scheduling. They should transform their specific email format into structured application data.
+Parsers must not call Zoho, Dropbox, or Excel directly, control the GUI, or manage scheduling. The generic parser should transform the four similar email formats into structured application data and report unsupported or invalid input clearly.
 
 ## 4. Development Phases
 
@@ -293,30 +290,27 @@ Convert retrieved emails into validated, structured data that can be consumed by
 - [ ] Define how validation errors are reported to the workflow.
 - [ ] Ensure model interfaces are suitable for the Excel layer.
 
-#### 4.2. Document and implement the four parsers
+#### 4.2. Document and implement the generic parser
 
-For each email type:
+The four target email types are expected to share substantially the same layout and extraction rules, so the current design uses one generic parser rather than four separate implementations. Verify this shared design against representative examples of all four types. If an example reveals a material format or rule difference, document and implement that difference explicitly without duplicating the full parser unnecessarily.
 
 - [ ] Obtain representative email samples.
-- [ ] Document the expected email structure.
+- [ ] Document the expected shared structure and any verified differences among the four types.
 - [ ] Confirm the fields to extract and their meanings.
-- [ ] Implement the corresponding dedicated parser.
+- [ ] Implement the generic parser for the shared structure.
 - [ ] Validate required fields and data types.
 - [ ] Handle missing fields, malformed content, and unexpected formatting.
-- [ ] Add unit tests using representative and invalid samples.
+- [ ] Add unit tests using representative and invalid samples from each of the four types.
 
-The parser modules are:
+The parser module is:
 
-- `parser_1.py`
-- `parser_2.py`
-- `parser_3.py`
-- `parser_4.py`
+- `report_parser.py` (generic parser for the four similar email types)
 
-Each parser should only interpret its specific email format and return structured data. It must not download Dropbox files, modify Excel, control the GUI, or manage scheduling.
+The generic parser should interpret the supported email formats and return structured data. It must not download Dropbox files, modify Excel, control the GUI, or manage scheduling.
 
 #### 4.3. Implement extraction validation and business rules
 
-- [ ] Implement selection of the appropriate parser for each identified email type.
+- [ ] Connect each identified email type to the generic parser using confirmed identification rules; keep email identification separate from parsing where practical.
 - [ ] Validate parser output before it proceeds to workbook processing.
 - [ ] Define how invalid records are handled.
 - [ ] Define duplicate-record handling where applicable.
@@ -326,21 +320,21 @@ Each parser should only interpret its specific email format and return structure
 
 #### 4.4. Test extraction independently
 
-- [ ] Test each parser's normal cases.
+- [ ] Test the generic parser's normal cases using representative samples from all four email types.
 - [ ] Test missing and malformed fields.
 - [ ] Test unexpected email formatting.
 - [ ] Verify extracted values against source samples.
-- [ ] Test parser selection and combined extraction.
+- [ ] Test email-type routing to the generic parser and combined extraction.
 - [ ] Ensure tests do not require live Zoho credentials.
 
 ### Acceptance criteria
 
-- Each target email type has a dedicated, independently tested parser.
+- One generic parser correctly handles all four target email types and is tested independently against representative samples for each type.
 - Extracted data matches the agreed field definitions.
 - Invalid or incomplete data is reported explicitly.
 - Parser output has a stable structure suitable for workbook updates.
 
-**Deliverable:** Four tested parsers and a validated extraction layer.
+**Deliverable:** One tested generic parser and a validated extraction layer for all four email types.
 
 ---
 
@@ -797,7 +791,7 @@ Do not mark a phase complete solely because its files exist. Mark it complete on
 | 1 | Project Foundation and Configuration | The application starts and loads validated settings. |
 | 2 | CLI, Dates and Execution State | Processing periods are resolved correctly and state persists safely. |
 | 3 | Zoho Authentication and Mail Integration | The application authenticates and retrieves the required emails. |
-| 4 | Email Models, Parsing and Business Logic | Four tested parsers produce validated structured data. |
+| 4 | Email Models, Parsing and Business Logic | One generic parser produces validated structured data for all four email types. |
 | 5 | Dropbox and Excel Integration | The application can safely modify and transfer a test workbook. |
 | 6 | End-to-End Application Workflow | All major components complete the business process together. |
 | 7 | Reliability, Logging, Error Handling and GUI | The application is diagnosable, prevents concurrent runs, and handles failures safely. |

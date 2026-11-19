@@ -1,5 +1,8 @@
 requests>=2.32.0
 python-dotenv>=1.0.1
+beautifulsoup4
+lxml
+dateparser>=1.5.1
 
 [dev]
 pytest>=8.0

@@ -25,34 +25,16 @@ class ProductionActivity:
 class ExtractedData:
     """Parent class for data extracted from emails.
     """
-    production_line: str
-    personnels_responsible: list[str]
-    activities: tuple[ProductionActivity, ...]
+    production_line: str | None
+    personnels_responsible: str | None
+    activities: list[ProductionActivity]
+
 
 @dataclass(frozen=True, slots=True)
-class IpqcReportExtractedData(ExtractedData):
-    """Data extracted from the IPQC Daily Report.
+class ReportExtractedData:
+    """Parent class for the reports.
     """
-
-@dataclass(frozen=True, slots=True)
-class PackagingReportExtractedData(ExtractedData):
-    """Data extracted from the Daily Packaging Report.
-    """
-
-@dataclass(frozen=True, slots=True)
-class PackagingStoreIpqcReportExtractedData(ExtractedData):
-    """Data extracted from the Beta-Lactam Packaging / Store IPQC Area Day Report.
-    """
-
-@dataclass(frozen=True, slots=True)
-class ProcessingReportExtractedData(ExtractedData):
-    """Data extracted from the Daily Processing Report.
-    """
-
-@dataclass(frozen=True, slots=True)
-class MaintenanceReportExtractedData():
-    """Data extracted from the Maintenance Report.
-    """
-    shift: str
-    date: str
-    report: str
+    date_received: str | None
+    report_date: str | None
+    shift: str | None
+    data: list[ExtractedData] | None

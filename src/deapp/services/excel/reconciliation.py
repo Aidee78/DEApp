@@ -109,13 +109,9 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
         if not populated:
             return choose_field(candidates)
         flag_conflict = len({value.flag for value, _ in candidates}) > 1
-        value_conflict = any(
-            value.value != candidates[0][0].value
-            for value, _ in candidates[1:]
-        )
 
-        # The officer value combines names; its flag follows the usual
-        # lowest-flag/latest-record rule unless any input conflicts.
+        # Officer names are combined, and only differing input flags make the
+        # consolidated officer field inconsistent.
         lowest_flag = min(value.flag for value, _ in populated)
         finalists = newest([
             (value, record)
@@ -144,7 +140,7 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
 
         result_flag = (
             INCONSISTENT_FLAG
-            if flag_conflict or value_conflict
+            if flag_conflict
             else chosen.flag
         )
         return replace(chosen, value=", ".join(names), flag=result_flag)

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, time
 
 @dataclass(frozen=True, slots=True)
-class Compression:
+class CompressionRecord:
     date: datetime
     line: str
     product: str

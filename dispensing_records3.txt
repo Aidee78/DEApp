@@ -1,0 +1,94 @@
+﻿Dispensing records returned for 2026-09-17:
+Count: 6
+1. DispensingRecord(
+date=datetime.datetime(2026, 9, 17, 0, 0), 
+line=None, 
+shift='Day', 
+product='ASTAMOCIL 500MG', 
+batch_number='1026046', 
+quantity_kg=None, 
+dispensing_room='Dispensing Room 1', 
+officer='FEMI OYEYINKA', 
+start_time=datetime.time(11, 39), 
+stop_time=datetime.time(11, 54), 
+status='', 
+remarks=' || '
+)
+
+2. DispensingRecord(
+date=datetime.datetime(2026, 9, 17, 0, 0), 
+line=None, 
+shift='Day', 
+product='ASTAMOCIL 500MG', 
+batch_number='1026046', 
+quantity_kg=None, 
+dispensing_room='Dispensing Room 1', 
+officer='FEMI OYEYINKA', 
+start_time=None, 
+stop_time=None, 
+status='', 
+remarks=' || '
+)
+
+3. DispensingRecord(
+date=datetime.datetime(2026, 9, 16, 0, 0), 
+line=None, 
+shift='Night', 
+product=None, 
+batch_number='SM/EXP/11/26/173', 
+quantity_kg=None, 
+dispensing_room='Dispensing Room 2', 
+officer='JELEEL RAHMON', 
+start_time=None, 
+stop_time=None, 
+status='', 
+remarks=' || '
+)
+
+4. DispensingRecord(
+date=datetime.datetime(2026, 9, 16, 0, 0), 
+line=None, 
+shift='Night', 
+product=None, 
+batch_number=None, 
+quantity_kg=None, 
+dispensing_room='Dispensing Room 1', 
+officer=None, 
+start_time=None, 
+stop_time=None, 
+status='', 
+remarks=' || '
+)
+
+5. DispensingRecord(
+date=datetime.datetime(2026, 9, 17, 0, 0), 
+line=None, 
+shift='Day', 
+product='ASTAMOCIL 60ML', 
+batch_number='1026046', 
+quantity_kg=488.0, 
+dispensing_room=None, 
+officer='OLASUNMOMI MATHEW S', 
+start_time=datetime.time(11, 39), 
+stop_time=datetime.time(11, 54), 
+status='', 
+remarks=' || '
+)
+
+6. DispensingRecord(
+date=datetime.datetime(2026, 9, 16, 0, 0), 
+line=None, 
+shift='Night', 
+product=None, 
+batch_number=None, 
+quantity_kg=None, 
+dispensing_room=None, 
+officer='ADELEKE ELIJAH A', 
+start_time=None, 
+stop_time=None, 
+status='', 
+remarks=' || '
+)
+.
+
+============================= 1 passed in 11.16s ==============================

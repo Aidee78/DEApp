@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, time
 
 @dataclass(frozen=True, slots=True)
-class Blistering:
+class BlisteringRecord:
     date: datetime
     machine: str
     product: str

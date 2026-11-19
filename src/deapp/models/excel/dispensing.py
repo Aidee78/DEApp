@@ -2,16 +2,17 @@ from dataclasses import dataclass
 from datetime import datetime, time
 
 @dataclass(frozen=True, slots=True)
-class Dispensing:
-    date: datetime
-    line: str
-    product: str
-    batch_number: str
-    quantity_kg: float
-    dispensing_room: str
-    officer: str
-    start_time: time
-    stop_time: time
-    status: str
-    remarks: str
+class DispensingRecord:
+    date: datetime | None
+    line: str | None
+    shift: str | None
+    product: str | None
+    batch_number: str | None
+    quantity_kg: float | None
+    dispensing_room: str | None
+    officer: str | None
+    start_time: time | None
+    stop_time: time | None
+    status: str | None
+    remarks: str | None
     

@@ -313,7 +313,9 @@ The generic parser should interpret the supported email formats and return struc
 - [ ] Connect each identified email type to the generic parser using confirmed identification rules; keep email identification separate from parsing where practical.
 - [ ] Validate parser output before it proceeds to workbook processing.
 - [ ] Define how invalid records are handled.
-- [ ] Define duplicate-record handling where applicable.
+- [x] Define extracted activity-record consolidation rules; see [RECORD_CONSOLIDATION.md](RECORD_CONSOLIDATION.md).
+- [ ] Verify the conversion path preserves key-field flags before consolidation.
+- [ ] Define workbook duplicate-row and repeated-processing behavior separately.
 - [ ] Define the behavior when expected emails or required fields are missing.
 - [ ] Prevent invalid or incomplete data from silently proceeding.
 - [ ] Ensure extraction failures are visible in logs and workflow results.
@@ -326,6 +328,9 @@ The generic parser should interpret the supported email formats and return struc
 - [ ] Verify extracted values against source samples.
 - [ ] Test email-type routing to the generic parser and combined extraction.
 - [ ] Ensure tests do not require live Zoho credentials.
+- [ ] Test activity grouping against exact record type, key values, and key flags.
+- [ ] Test missing-value priority, all-`None` field flags, officer-name joining, and latest `received_at`.
+- [ ] Test that tied conflicting values are reported instead of silently selected.
 
 ### Acceptance criteria
 
@@ -333,6 +338,7 @@ The generic parser should interpret the supported email formats and return struc
 - Extracted data matches the agreed field definitions.
 - Invalid or incomplete data is reported explicitly.
 - Parser output has a stable structure suitable for workbook updates.
+- Extracted activity records follow the approved consolidation rules in [RECORD_CONSOLIDATION.md](RECORD_CONSOLIDATION.md).
 
 **Deliverable:** One tested generic parser and a validated extraction layer for all four email types.
 
@@ -746,6 +752,8 @@ These requirements apply throughout development, not only in the phase where the
 
 The following decisions must be resolved before implementing the components that depend on them:
 
+The extracted activity-record consolidation rules are approved and documented in [RECORD_CONSOLIDATION.md](RECORD_CONSOLIDATION.md). That decision does not resolve duplicate workbook rows or repeated-processing behavior.
+
 1. Exact identification criteria for each of the four email types.
 2. Required fields and extraction rules for each parser.
 3. Behavior when expected emails are missing.
@@ -754,7 +762,7 @@ The following decisions must be resolved before implementing the components that
 6. Exact workbook path in Dropbox.
 7. Workbook worksheet names, tables, columns, formulas, and ranges that will be changed.
 8. Whether data is appended, overwritten, or otherwise transformed.
-9. Duplicate-row and repeated-processing rules.
+9. Workbook duplicate-row and repeated-processing rules, separately from extracted activity-record consolidation.
 10. Date-range inclusivity and interpretation of the last successful execution date.
 11. Behavior after a failed or interrupted run.
 12. Secure production credential and token-storage approach.
@@ -762,6 +770,7 @@ The following decisions must be resolved before implementing the components that
 14. GUI closure and cancellation behavior, beyond the invariant that cancellation must not upload an invalid workbook.
 15. Exact Task Scheduler settings and production execution account.
 16. Target Windows and Microsoft Excel environment.
+17. Resolution for conflicting field values tied on both flag and `received_at` (the current consolidator reports this ambiguity).
 
 Resolve these decisions with explicit requirements or representative samples. Do not invent values or rules to make implementation appear complete.
 

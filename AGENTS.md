@@ -171,6 +171,9 @@ depend on GUI state.
     content, and API failures explicit outcomes governed by documented
     business rules.
 -   Do not silently drop invalid records or fabricate missing values.
+-   Apply the approved extracted activity-record consolidation rules in
+    `docs/RECORD_CONSOLIDATION.md`. These rules do not define duplicate
+    workbook-row or repeated-processing behavior.
 -   Keep date parsing and date-range resolution centralized.
 -   Do not assume whether date ranges or the last successful date are
     inclusive or exclusive. Follow the finalized business rule and test
@@ -263,6 +266,9 @@ Add or update tests with every meaningful behavior change.
 -   Test boundary dates, missing messages, duplicate matches, malformed
     email content, invalid workbook structures, and token refresh
     failures as relevant.
+-   Test activity-record consolidation using the exact record type, key
+    values and flags, missing-value precedence, officer-name de-duplication,
+    latest `received_at`, and tied-conflict behavior.
 -   Run the narrowest relevant test suite first, followed by broader
     checks when feasible.
 -   Report which commands were run and whether they passed. If a test
@@ -327,7 +333,9 @@ user, do not invent:
 -   Required fields and extraction rules for each email.
 -   Behavior when expected emails are missing or multiple messages
     match.
--   Duplicate-handling rules.
+-   Workbook duplicate-row and repeated-processing rules.
+-   Resolution for conflicting field values tied on both flag and
+    `received_at`; the current consolidator raises an error for this case.
 -   The Excel workbook path, sheet names, columns, tables, or cell
     ranges.
 -   Whether workbook data is appended, overwritten, or otherwise
@@ -339,6 +347,10 @@ user, do not invent:
     cancellation must not upload invalid work.
 -   Production scheduling and deployment settings beyond the stated
     daily target.
+
+The extracted activity-record consolidation rule is specified in
+`docs/RECORD_CONSOLIDATION.md`. Keep workbook duplicate-row behavior and
+the exact flag/`received_at` tie case explicitly unresolved until decided.
 
 When a decision blocks safe implementation, ask a focused question and
 explain why the answer matters.

@@ -76,4 +76,5 @@ def parse_production_activities(
         report_date=report_date.isoformat() if report_date else None,
         shift=shift or None,
         data=extracted_production_data,
+        received_at=received_at,
     )

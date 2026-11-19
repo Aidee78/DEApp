@@ -1,18 +1,23 @@
 from dataclasses import dataclass
 from datetime import datetime, time
 
+from deapp.models.excel.field import FlaggedValue
+
+
 @dataclass(frozen=True, slots=True)
 class DispensingRecord:
-    date: datetime | None
-    line: str | None
-    shift: str | None
-    product: str | None
-    batch_number: str | None
-    quantity_kg: float | None
-    dispensing_room: str | None
-    officer: str | None
-    start_time: time | None
-    stop_time: time | None
-    status: str | None
-    remarks: str | None
-    
+    """One dispensing activity with per-field consistency flags."""
+
+    date: FlaggedValue[datetime | None]
+    line: FlaggedValue[str | None]
+    shift: FlaggedValue[str | None]
+    product: FlaggedValue[str | None]
+    batch_number: FlaggedValue[str | None]
+    quantity_kg: FlaggedValue[float | None]
+    dispensing_room: FlaggedValue[str | None]
+    officer: FlaggedValue[str | None]
+    start_time: FlaggedValue[time | None]
+    stop_time: FlaggedValue[time | None]
+    status: FlaggedValue[str | None]
+    remarks: FlaggedValue[str | None]
+    received_at: datetime

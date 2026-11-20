@@ -71,6 +71,9 @@ def test_live_zoho_messages_through_parser_and_converter() -> None:
                 subject=message.subject,
                 received_at=message.received_at,
             )
+            print()
+            print(report)
+            print()
             assert report.data, (
                 f"Parser found no report tables in {type_name}: "
                 f"{message.subject!r}"

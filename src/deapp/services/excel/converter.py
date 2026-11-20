@@ -142,6 +142,7 @@ class Converter:
         deduplicated_records = remove_duplicates(records)
         print(deduplicated_records)
         consolidated_records = consolidate_records(deduplicated_records)
+        only_valid_records = remove_invalid_records(consolidate_records)
         return consolidated_records
         
 

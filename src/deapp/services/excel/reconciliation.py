@@ -13,14 +13,22 @@ _ACTIVITY_KEY_FIELDS = ("date", "shift", "batch_number")
 CONSISTENT_FLAG: FieldFlag = 0
 INCONSISTENT_FLAG: FieldFlag = 3
 
+RecordT = TypeVar("RecordT")
+Candidate = tuple[FlaggedValue[Any], Any]
+
+_TIME_FIELDS = ("start_time", "end_time", "stop_time")
+_MEASURE_FIELDS = (
+    "quantity_kg",
+    "output",
+    "quantity_tabs",
+    "drums",
+    "coarse_kg",
+    "powder_kg",
+    "number_of_cartons",
+)
 
 class ReconciliationError(ValueError):
     """Raised when conflicting values cannot be ordered safely."""
-
-
-
-RecordT = TypeVar("RecordT")
-Candidate = tuple[FlaggedValue[Any], Any]
 
 
 def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
@@ -176,3 +184,51 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
         consolidated.append(cast(RecordT, replace(group[0], **updates)))
 
     return consolidated
+
+def _all_present_fields_are_empty_flagged_1(
+    record: object,
+    field_names: tuple[str, ...],
+) -> bool:
+    """Return whether at least one listed field exists and all such fields are empty."""
+    present_fields: list[FlaggedValue[object]] = []
+
+    for name in field_names:
+        if not hasattr(record, name):
+            continue
+
+        value = getattr(record, name)
+        if not isinstance(value, FlaggedValue):
+            raise TypeError(f"Record field {name!r} must be a FlaggedValue.")
+
+        present_fields.append(value)
+
+    # An absent field group should not count as empty.
+    return bool(present_fields) and all(
+        value.value is None and value.flag == 1
+        for value in present_fields
+    )
+
+
+def remove_completely_empty_records(records: Iterable[RecordT]) -> list[RecordT]:
+    """Remove unbatched records whose available time and measure fields are all empty."""
+    kept: list[RecordT] = []
+
+    for record in records:
+        if not is_dataclass(record) or isinstance(record, type):
+            raise TypeError("Each record must be a dataclass instance.")
+
+        batch_number = getattr(record, "batch_number", None)
+        if not isinstance(batch_number, FlaggedValue):
+            raise TypeError("Record field 'batch_number' must be a FlaggedValue.")
+
+        should_remove = (
+            batch_number.value is None
+            and batch_number.flag == 1
+            and _all_present_fields_are_empty_flagged_1(record, _TIME_FIELDS)
+            and _all_present_fields_are_empty_flagged_1(record, _MEASURE_FIELDS)
+        )
+
+        if not should_remove:
+            kept.append(record)
+
+    return kept

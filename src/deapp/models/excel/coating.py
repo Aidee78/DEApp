@@ -17,7 +17,7 @@ class CoatingRecord:
     stop_time: FlaggedValue[time]
     idle_time: FlaggedValue[time]
     quantity_kg: FlaggedValue[float]
-    quantity_tab: FlaggedValue[float]
+    quantity_tabs: FlaggedValue[float]
     status: FlaggedValue[str]
     remarks: FlaggedValue[str]
     challenges: FlaggedValue[str]

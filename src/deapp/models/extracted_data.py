@@ -1,5 +1,5 @@
 """Structured parser output."""
-
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import TypeAlias
 
@@ -11,10 +11,13 @@ class ProductionActivity:
     stage: str | None = None
     product_name: str | None = None
     batch_no: str | None = None
-    quantity: str | None = None
+    no: str | None = None
+    no_of_cartons: str | None = None
     start_time: str | None = None
     end_time: str | None = None
     idle_time: str | None = None
+    mc_no: str | None = None
+    waste: str | None = None
     status: str | None = None
     challenges: str | None = None
     action_taken_remarks: str | None = None

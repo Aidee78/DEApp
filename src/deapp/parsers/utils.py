@@ -288,11 +288,11 @@ def matrix_to_records(
         return []
 
     print(matrix)
-    headers = [header.strip() for header in matrix[0]]
+    headers = [_remove_excess_whitespaces(header) for header in matrix[0]]
 
     return [
         {
-            header: value.strip()
+            header: _remove_excess_whitespaces(value)
             for header, value in zip(headers, row, strict=True)
         }
         for row in matrix[1:]
@@ -356,3 +356,6 @@ def get_line_and_personnel(
             return extract_line_and_personnel(text)
 
     return None, None
+
+def _remove_excess_whitespaces(string: str) -> str:
+    return re.sub(r"\s+", " ", string).strip()

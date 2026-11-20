@@ -4,6 +4,8 @@ from collections.abc import Sequence, Mapping
 from difflib import SequenceMatcher
 from fractions import Fraction
 
+from deapp.models.excel.field import FlaggedValue
+
 
 PRODUCTION_LINES = [
     "Dry Syrup",
@@ -21,40 +23,61 @@ PRODUCTS = {
     "11": "ASTAMENTIN 625MG"
 }
 
-def to_datetime(value: str | None) -> datetime | None:
+def to_datetime(value: str | None) -> FlaggedValue:
     """Convert an ISO date or datetime string; return None if empty or invalid."""
-    if not isinstance(value, str) or not value.strip():
-        return None
+    if not isinstance(value, str):
+        # The value was not a string, it is not even parseable
+        return FlaggedValue(None, 2)
+
+    if not value.strip():
+        # It was a string but empty
+        return FlaggedValue(None, 1)
 
     try:
-        return datetime.fromisoformat(value.strip())
+        # It was a string, was parseable and valid
+        return FlaggedValue(
+            datetime.fromisoformat(value.strip()),
+            0
+            )
     except ValueError:
-        return None
+        # It was a string, but was not parseable
+        return FlaggedValue(None, 2)
 
-def to_shift(value: str | None) -> str | None:
+
+def to_shift(value: str | None) -> FlaggedValue:
     """Return 'Day' or 'Night' when exactly one shift is mentioned."""
-    if not isinstance(value, str) or not value.strip():
-        return None
+    if not isinstance(value, str):
+        # The value was not a string, it is not even parseable
+        return FlaggedValue(None, 2)
+    
+    if not value.strip():
+        # It was a string but empty
+        return FlaggedValue(None, 1)
 
     shifts = set(re.findall(r"\b(day|night)\b", value.casefold()))
 
     if shifts == {"day"}:
-        return "Day"
+        return FlaggedValue("Day", 0)
     if shifts == {"night"}:
-        return "Night"
-    return None
+        return FlaggedValue("Night", 0)
+    
+    return FlaggedValue(None, 2)
 
 def to_production_line(
     value: str | None,
-    # production_lines: Sequence[str],
     *,
     minimum_score: float = 0.85,
     ambiguity_margin: float = 0.05,
-) -> str | None:
+) -> FlaggedValue:
     """Return the canonical line name for a clear match, or None."""
     production_lines = PRODUCTION_LINES
-    if not isinstance(value, str) or not value.strip():
-        return None
+    if not isinstance(value, str):
+        # The value was not a string, it is not even parseable
+        return FlaggedValue(None, 2)
+    
+    if not value.strip():
+        # It was a string but empty
+        return FlaggedValue(None, 1)
 
     def normalize(text: str) -> str:
         return " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
@@ -62,7 +85,8 @@ def to_production_line(
     input_normalized = normalize(value)
 
     if not input_normalized:
-        return None
+        # was a string but empty
+        return FlaggedValue(None, 1)
 
     # Return the canonical spelling for an exact match after normalization.
     exact_matches = [
@@ -71,9 +95,12 @@ def to_production_line(
         if normalize(line) == input_normalized
     ]
     if len(exact_matches) == 1:
-        return exact_matches[0]
+        # was parseable and valid
+        return FlaggedValue(exact_matches[0], 0)
+    
     if exact_matches:
-        return None
+        # Not exactly parseable, as it returned mutiple
+        return FlaggedValue(None, 2)
 
     input_numbers = re.findall(r"\d+", input_normalized)
     scored_matches: list[tuple[float, str]] = []
@@ -98,24 +125,27 @@ def to_production_line(
     scored_matches.sort(key=lambda item: item[0], reverse=True)
 
     if not scored_matches or scored_matches[0][0] < minimum_score:
-        return None
+        # The value was not a string, it is not even parseable
+        return FlaggedValue(None, 2)
 
     if (
         len(scored_matches) > 1
         and scored_matches[0][0] - scored_matches[1][0] <= ambiguity_margin
     ):
-        return None
+        # if scored_matches > 1 and the score of the first find and the second are not too different
 
-    return scored_matches[0][1]
+        # The value was not a string, it is not even parseable
+        return FlaggedValue(None, 2)
+
+    return FlaggedValue(scored_matches[0][1])
 
 def to_resolve_product(
     product_name: str | None,
     batch_number: str | None,
-    # products: Mapping[str, str],
     *,
     minimum_score: float = 0.85,
     ambiguity_margin: float = 0.05,
-) -> str | None:
+) -> FlaggedValue:
     """Find a product by name, then fall back to its two-digit batch code."""
 
     products = PRODUCTS
@@ -138,7 +168,7 @@ def to_resolve_product(
             if normalize(name) == target
         }
         if len(exact_matches) == 1:
-            return next(iter(exact_matches))
+            return FlaggedValue(next(iter(exact_matches)), 0)
 
         # For fuzzy matching, require any numbers in the name to match.
         target_numbers = re.findall(r"\d+", target)
@@ -162,35 +192,40 @@ def to_resolve_product(
                 len(candidates) == 1
                 or candidates[0][0] - candidates[1][0] > ambiguity_margin
             ):
-                return candidates[0][1]
+                return FlaggedValue(candidates[0][1], 0)
 
     # Fall back to the first two digits found in the batch number.
     if isinstance(batch_number, str):
         digits = batch_number[0:2]
         
-        return products.get(digits[:2])
+        return FlaggedValue(products.get(digits[:2]), 0)
 
-    return None
+    if isinstance(product_name, str) and (not product_name.strip()):
+        return FlaggedValue(None, 1) 
+       
+    return FlaggedValue(None, 2)
 
 def to_batch_number(
     value: str | None
-) -> str | None:
-    if value is None:
-        return None
+) -> FlaggedValue:
+    if value is None or (not isinstance(value, str)):
+        return FlaggedValue(None, 2)
 
     value = value.strip()
     try:
         int(value)
-        return value
-    except ValueError, TypeError:
+        return FlaggedValue(None, 2)
+    except (ValueError, TypeError):
         digits = "".join(re.findall(r"\d", value))
         if digits:
-            return value
+            return FlaggedValue(None, 2)
 
-def to_extract_kg_quantity(value: str | None) -> float | None:
+    return FlaggedValue(None, 1)
+
+def to_extract_kg_quantity(value: str | None) -> FlaggedValue:
     """Extract the first number followed by 'kg', or return None."""
     if not isinstance(value, str):
-        return None
+        return FlaggedValue(None, 2)
 
     pattern = re.compile(
         r"(?<![\w.])"
@@ -202,11 +237,14 @@ def to_extract_kg_quantity(value: str | None) -> float | None:
     for match in pattern.finditer(value):
         number_text = re.sub(r"\s+", "", match.group("number"))
         try:
-            return float(Fraction(number_text))
+            return FlaggedValue(float(Fraction(number_text)), 0)
         except (ValueError, ZeroDivisionError):
             continue
 
-    return None
+    if not to_valid_string(value):
+        return FlaggedValue(None, 1)
+    
+    return FlaggedValue(None, 2)
 
 def _extract_whole_number(value: str | None) -> int | None:
     """Extract the first whole number from text, or return None."""

@@ -5,7 +5,7 @@ from typing import Generic, Literal, TypeVar
 
 
 T = TypeVar("T")
-FieldFlag = Literal[0, 3]
+FieldFlag = Literal[0,1,2,3]
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,5 +21,5 @@ class FlaggedValue(Generic[T]):
 
     def __post_init__(self) -> None:
         """Reject flag codes outside the currently defined status values."""
-        if self.flag not in (0, 3):
-            raise ValueError("Field flag must be 0 (consistent) or 3 (inconsistent).")
+        if self.flag not in (0,1,2,3):
+            raise ValueError("Field flag must be 0, 1, 2, or 3.")

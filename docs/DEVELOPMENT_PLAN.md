@@ -313,6 +313,12 @@ The generic parser should interpret the supported email formats and return struc
 - [ ] Connect each identified email type to the generic parser using confirmed identification rules; keep email identification separate from parsing where practical.
 - [ ] Validate parser output before it proceeds to workbook processing.
 - [ ] Define how invalid records are handled.
+- [ ] Implement the four field-status flags: `0` for parseable non-`None` values, `1` for parseable empty values, `2` for unparseable values, and `3` for conflicting sources.
+- [ ] Assign flags `0`, `1`, and `2` in the Excel conversion helpers that inspect and convert each raw source value; assign flag `3` only where multiple sources are compared.
+- [ ] Preserve the raw source value needed to distinguish an empty field from a nonempty but unparseable field.
+- [ ] Resolve stage-specific measurement headers and `extra_fields` before assigning a status to a target measurement.
+- [ ] Detect aliases and repeated source headers that target the same field; do not silently overwrite or discard their values.
+- [ ] After consolidation, remove a record only when its batch number is `None` with flag `1`, every applicable time field is `None` with flag `1`, and every applicable measure field is `None` with flag `1`. The filter must leave retained values and flags unchanged.
 - [x] Define extracted activity-record consolidation rules; see [RECORD_CONSOLIDATION.md](RECORD_CONSOLIDATION.md).
 - [ ] Verify the conversion path preserves key-field flags before consolidation.
 - [ ] Define workbook duplicate-row and repeated-processing behavior separately.
@@ -324,6 +330,9 @@ The generic parser should interpret the supported email formats and return struc
 
 - [ ] Test the generic parser's normal cases using representative samples from all four email types.
 - [ ] Test missing and malformed fields.
+- [ ] Test flag assignment for parseable values, empty values, unparseable values, and conflicting sources.
+- [ ] Test header aliases and repeated headers, including that valid values are not overwritten by empty values and differing values are reported as conflicts.
+- [ ] Test stage-specific measurements found in `extra_fields` and the completely-empty unbatched-record filter.
 - [ ] Test unexpected email formatting.
 - [ ] Verify extracted values against source samples.
 - [ ] Test email-type routing to the generic parser and combined extraction.
@@ -336,6 +345,9 @@ The generic parser should interpret the supported email formats and return struc
 
 - One generic parser correctly handles all four target email types and is tested independently against representative samples for each type.
 - Extracted data matches the agreed field definitions.
+- Field statuses distinguish valid values, empty values, unparseable values, and conflicting sources without silently losing source values.
+- Header aliases and repeated headers cannot silently overwrite other source values.
+- Completely empty unbatched records are filtered by the approved rule without changing flags on retained records.
 - Invalid or incomplete data is reported explicitly.
 - Parser output has a stable structure suitable for workbook updates.
 - Extracted activity records follow the approved consolidation rules in [RECORD_CONSOLIDATION.md](RECORD_CONSOLIDATION.md).
@@ -770,7 +782,10 @@ The extracted activity-record consolidation rules are approved and documented in
 14. GUI closure and cancellation behavior, beyond the invariant that cancellation must not upload an invalid workbook.
 15. Exact Task Scheduler settings and production execution account.
 16. Target Windows and Microsoft Excel environment.
-17. Resolution for conflicting field values tied on both flag and `received_at` (the current consolidator reports this ambiguity).
+17. Resolution for conflicting field values tied on both flag and `received_at` (the current consolidator selects the first candidate and marks flag `3`, making the result input-order-dependent).
+18. Precedence for flags `1` and `2` when choosing among consolidated candidates; the four flag definitions do not define a ranking.
+19. Handling when multiple header aliases map to one field and one value is empty while another is nonempty.
+20. Interpretation and destination of mixed-unit measurements such as `2 CARTONS 34 BUNDLES`, including whether bundle counts need their own field.
 
 Resolve these decisions with explicit requirements or representative samples. Do not invent values or rules to make implementation appear complete.
 

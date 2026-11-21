@@ -42,7 +42,7 @@ def parse_production_activities(
     mail_content: str,
     *,
     subject: str | None = None,
-    received_at: datetime | None = None,
+    received_at: datetime,
 ) -> ReportExtractedData:
     """Extract activity rows from every table in an IPQC email."""
 
@@ -52,10 +52,7 @@ def parse_production_activities(
         activities: list[ProductionActivity] = []
 
         line, personnel = get_line_and_personnel(table)
-
-        print(line)
-        print(personnel)
-
+        print(subject)
         matrix = normalize_report_table(table)
         records = matrix_to_records(matrix)
         activities.extend(
@@ -77,6 +74,10 @@ def parse_production_activities(
         received_at=received_at,
     )
 
+    print()
+    print(subject)
+    print(report_date, shift)
+    print()
 
 
     return ReportExtractedData(

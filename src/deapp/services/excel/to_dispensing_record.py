@@ -41,37 +41,29 @@ def get_dispensing_records_from_processing_report(processing_reports: list[Repor
                                 production_activity.no,
                                 ),
                                 
-                                dispensing_room=FlaggedValue(
-                                    utils.to_dispensing_room(
-                                        production_activity.stage,
-                                    ),
+                                dispensing_room=utils.to_dispensing_room(
+                                production_activity.stage,
                                 ),
-                                officer=FlaggedValue(
-                                    utils.to_personnel_names(
-                                        extracted_data.personnels_responsible,
-                                    ),
+
+                                officer=utils.to_personnel_names(
+                                extracted_data.personnels_responsible,),
+
+                                start_time=utils.extract_time(
+                                production_activity.start_time,
+                                shift.value,
                                 ),
-                                start_time=FlaggedValue(
-                                    utils._extract_single_time(
-                                        production_activity.start_time,
-                                        shift.value,
-                                    ),
-                                ),
-                                stop_time=FlaggedValue(
-                                    utils._extract_single_time(
-                                        production_activity.end_time,
-                                        shift.value,
-                                    ),
+                                stop_time=utils.extract_time(
+                                production_activity.end_time,
+                                shift.value,
                                 ),
                                 status=FlaggedValue(
                                     utils.to_valid_string(
                                         production_activity.status,
                                     ),
                                 ),
-                                remarks=FlaggedValue(
-                                    f"{utils.to_valid_string(production_activity.challenges)} "
-                                    f"{utils.to_valid_string(production_activity.action_taken_remarks)}",
-                                ),
+                                remarks=utils.to_remarks(production_activity.challenges,
+                                production_activity.action_taken_remarks),
+
                                 received_at=processing_report.received_at,
                             )
                         )
@@ -94,62 +86,50 @@ def get_dispensing_records_from_store_packaging_report(store_packaging_reports: 
                         shift = utils.to_shift(store_packaging_report.shift)
                         records.append(
                             DispensingRecord(
-                                date=FlaggedValue(
-                                    utils.to_datetime(store_packaging_report.report_date),
+                                date=utils.to_datetime(store_packaging_report.report_date),
+
+                                line=utils.to_production_line(
+                                extracted_data.production_line,),
+
+                                shift=shift,
+
+                                product=utils.to_resolve_product(
+                                production_activity.product_name,
+                                production_activity.batch_no,
                                 ),
-                                line=FlaggedValue(
-                                    utils.to_production_line(
-                                        extracted_data.production_line,
-                                    ),
+                                
+                                batch_number=utils.to_batch_number(
+                                production_activity.batch_no,
                                 ),
-                                shift=FlaggedValue(shift),
-                                product=FlaggedValue(
-                                    utils.to_resolve_product(
-                                        production_activity.product_name,
-                                        production_activity.batch_no,
-                                    ),
+
+                                quantity_kg=utils.to_extract_kg_quantity(
+                                production_activity.no,
                                 ),
-                                batch_number=FlaggedValue(
-                                    utils.to_batch_number(
-                                        production_activity.batch_no,
-                                    ),
+
+                                dispensing_room=utils.to_dispensing_room(
+                                production_activity.stage,
                                 ),
-                                quantity_kg=FlaggedValue(
-                                    utils.to_extract_kg_quantity(
-                                        production_activity.no,
-                                    ),
+                                
+                                officer=utils.to_personnel_names(
+                                extracted_data.personnels_responsible,),
+                                
+                                start_time=utils.extract_time(
+                                production_activity.start_time,
+                                shift.value,
                                 ),
-                                dispensing_room=FlaggedValue(
-                                    utils.to_dispensing_room(
-                                        production_activity.stage,
-                                    ),
-                                ),
-                                officer=FlaggedValue(
-                                    utils.to_personnel_names(
-                                        extracted_data.personnels_responsible,
-                                    ),
-                                ),
-                                start_time=FlaggedValue(
-                                    utils._extract_single_time(
-                                        production_activity.start_time,
-                                        shift,
-                                    ),
-                                ),
-                                stop_time=FlaggedValue(
-                                    utils._extract_single_time(
-                                        production_activity.end_time,
-                                        shift,
-                                    ),
+                                stop_time=utils.extract_time(
+                                production_activity.end_time,
+                                shift.value,
                                 ),
                                 status=FlaggedValue(
                                     utils.to_valid_string(
                                         production_activity.status,
                                     ),
                                 ),
-                                remarks=FlaggedValue(
-                                    f"{utils.to_valid_string(production_activity.challenges)} "
-                                    f"{utils.to_valid_string(production_activity.action_taken_remarks)}",
-                                ),
+                                remarks=utils.to_remarks(production_activity.challenges,
+                                                         
+                                production_activity.action_taken_remarks),
+
                                 received_at=store_packaging_report.received_at,
                             )
                         )

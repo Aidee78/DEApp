@@ -41,4 +41,4 @@ class ReportExtractedData:
     report_date: str | None
     shift: str | None
     data: list[ExtractedData] | None
-    received_at: datetime | None = None
+    received_at: datetime

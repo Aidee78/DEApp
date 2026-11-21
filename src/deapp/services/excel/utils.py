@@ -35,10 +35,7 @@ def to_datetime(value: str | None) -> FlaggedValue:
 
     try:
         # It was a string, was parseable and valid
-        return FlaggedValue(
-            datetime.fromisoformat(value.strip()),
-            0
-            )
+        return FlaggedValue(datetime.fromisoformat(value.strip()),0)
     except ValueError:
         # It was a string, but was not parseable
         return FlaggedValue(None, 2)
@@ -208,24 +205,26 @@ def to_resolve_product(
 def to_batch_number(
     value: str | None
 ) -> FlaggedValue:
-    if value is None or (not isinstance(value, str)):
+    if not isinstance(value, str):
         return FlaggedValue(None, 2)
 
     value = value.strip()
+    if not value:
+        return FlaggedValue(None, 1)
     try:
         int(value)
-        return FlaggedValue(None, 2)
+        return FlaggedValue(value, 0)
     except (ValueError, TypeError):
         digits = "".join(re.findall(r"\d", value))
         if digits:
-            return FlaggedValue(None, 2)
+            return FlaggedValue(value, 0)
 
-    return FlaggedValue(None, 1)
+    return FlaggedValue(None, 2)
 
 def to_extract_kg_quantity(value: str | None) -> FlaggedValue:
     """Extract the first number followed by 'kg', or return None."""
-    if not isinstance(value, str):
-        return FlaggedValue(None, 2)
+    if value is None:
+        return FlaggedValue(None, 1)
 
     pattern = re.compile(
         r"(?<![\w.])"
@@ -265,12 +264,14 @@ def _extract_whole_number(value: str | None) -> int | None:
 
 def to_dispensing_room(
     value: str | None
-) -> str | None:
+) -> FlaggedValue:
     room_num = _extract_whole_number(value)
     if isinstance(room_num, int):
-        return f"Dispensing Room {room_num}"
+        return FlaggedValue(f"Dispensing Room {room_num}", 0)
 
-    return None
+    if isinstance(value, str) and not value.strip():
+        return FlaggedValue(None, 1)
+    return FlaggedValue(None, 2)
 
 def _consolidate_names(value: str) -> str | None:
     """Split names on symbols or digits, preserve spaces within names."""
@@ -279,14 +280,14 @@ def _consolidate_names(value: str) -> str | None:
     names = [" ".join(part.split()) for part in parts]
     return ", ".join(name for name in names if name)
 
-def to_personnel_names(value: str | None) -> str | None:
+def to_personnel_names(value: str | None) -> FlaggedValue:
     if not isinstance(value, str):
-        return None
+        return FlaggedValue(None, 2)
 
     if value.strip()[::-1] == value.strip():
-        return None
+        return FlaggedValue(None, 1)
 
-    return _consolidate_names(value.replace(".", " "))
+    return FlaggedValue(_consolidate_names(value.replace(".", " ")), 0)
 
 def to_valid_string(value: str | None) -> str | None:
     if not isinstance(value, str):
@@ -300,17 +301,19 @@ def to_valid_string(value: str | None) -> str | None:
 def _extract_single_time(
     value: str | None,
     shift: str | None,
-) -> time | None:
+) -> FlaggedValue:
     """Extract one time and resolve AM/PM ambiguity using the shift."""
     if not isinstance(value, str):
-        return None
+        return FlaggedValue(None, 2)
 
     
     if shift is None:
+        return FlaggedValue(None, 2)
         raise ValueError("Shift is required to resolve the time.")
 
     shift_name = shift.strip().casefold()
     if shift_name not in {"day", "night"}:
+        return FlaggedValue(None, 2)
         raise ValueError("Shift must be 'Day' or 'Night'.")
 
     
@@ -328,11 +331,12 @@ def _extract_single_time(
     matches = list(pattern.finditer(value))
 
     if len(matches) > 1:
+        return FlaggedValue(None, 2)
         raise ValueError(
             f"Expected one time, but found {len(matches)} in the input."
         )
     if not matches:
-        return None
+        return FlaggedValue(None, 1)
 
     match = matches[0]
     hour = int(match.group("hour"))
@@ -342,7 +346,7 @@ def _extract_single_time(
 
     if period:
         if not 1 <= hour <= 12:
-            return None
+            return FlaggedValue(None, 2)
 
         if period.upper() == "AM":
             hour = 0 if hour == 12 else hour
@@ -362,4 +366,25 @@ def _extract_single_time(
             elif 7 <= hour <= 11:
                 hour += 12
 
-    return time(hour, minute, second)
+    return FlaggedValue(time(hour, minute, second), 0)
+
+def extract_time(
+    value: str | None,
+    shift: str | None,
+) -> FlaggedValue:
+    """Extract one time and resolve AM/PM ambiguity using the shift."""
+    return _extract_single_time(value, shift)
+
+def to_remarks(
+    challenges: str | None,
+    action_taken_remarks: str | None,
+) -> FlaggedValue:
+    
+    challenges = to_valid_string(challenges)
+    action_taken_remarks = to_valid_string(action_taken_remarks)
+
+    if not challenges and (not action_taken_remarks):
+        return FlaggedValue(None, 1)
+
+
+    return FlaggedValue(f"{challenges}. || {action_taken_remarks}.", 0)

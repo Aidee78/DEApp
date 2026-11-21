@@ -2,6 +2,7 @@
 
 import re
 from datetime import date, datetime
+from difflib import SequenceMatcher
 from typing import Literal, cast
 
 from bs4 import BeautifulSoup, Comment, Tag
@@ -15,6 +16,16 @@ Shift = Literal["day", "night"]
 _MONTHS = (
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
+)
+_MIN_MONTH_MATCH_RATIO = 0.85
+_MIN_MONTH_MATCH_MARGIN = 0.10
+_MIN_STAGE_MATCH_RATIO = 0.85
+
+_WRITTEN_DATE = re.compile(
+    r"(?<!\w)(?:(?P<day_first>\d{1,2})\s+(?P<month_after_day>[A-Za-z]+)|"
+    r"(?P<month_before_day>[A-Za-z]+)\s+(?P<day_after_month>\d{1,2}))"
+    r"\s*,?\s+(?P<year>(?:19|20)\d{2})(?!\d)",
+    re.IGNORECASE,
 )
 
 _NUMERIC_DATE = re.compile(
@@ -56,8 +67,39 @@ def _text_outside_tables(html: str) -> str:
     return text[greeting.start():] if greeting else text
 
 
+def _normalize_month_in_date(match: re.Match[str]) -> str:
+    """Correct a month typo only when it occurs in a complete date phrase."""
+    month_group = (
+        "month_after_day"
+        if match.group("month_after_day") is not None
+        else "month_before_day"
+    )
+    month_token = match.group(month_group)
+    ranked_months = sorted(
+        (
+            SequenceMatcher(None, month_token.casefold(), month.casefold()).ratio(),
+            month,
+        )
+        for month in _MONTHS
+    )
+    ranked_months.reverse()
+
+    best_score, best_month = ranked_months[0]
+    second_best_score = ranked_months[1][0]
+    if (
+        best_score < _MIN_MONTH_MATCH_RATIO
+        or best_score - second_best_score < _MIN_MONTH_MATCH_MARGIN
+    ):
+        return match.group(0)
+
+    start = match.start(month_group) - match.start()
+    end = match.end(month_group) - match.start()
+    matched_text = match.group(0)
+    return matched_text[:start] + best_month + matched_text[end:]
+
+
 def _normalize_report_date_text(text: str) -> str:
-    """Repair date words split by HTML formatting in saved reports."""
+    """Repair split date words and clear month typos in complete date phrases."""
     text = text.replace("\ufffd", " ").replace("\u200b", " ").replace("\xa0", " ")
     text = re.sub(
         r"\b(\d{1,2})\s*(?:st|nd|rd|th)\b",
@@ -71,7 +113,8 @@ def _normalize_report_date_text(text: str) -> str:
         spaced_month = r"\b" + r"\s*".join(map(re.escape, month)) + r"\b"
         text = re.sub(spaced_month, month, text, flags=re.IGNORECASE)
 
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
+    return _WRITTEN_DATE.sub(_normalize_month_in_date, text)
 
 
 def _find_date_candidates(text: str) -> set[date]:
@@ -181,6 +224,40 @@ def extract_html_tables(mail_content: str) -> list[Tag]:
     return tables
 
 
+def _stage_names_match(previous_stage: str, current_stage: str) -> bool:
+    """Match stage labels despite minor spelling differences.
+
+    Alphabetic tokens must be at least 85% similar. Numeric tokens and token
+    order must match exactly so stages such as "DISPENSING 1" and
+    "DISPENSING 2" remain distinct.
+    """
+    previous_tokens = re.findall(r"[a-z]+|\d+", previous_stage.casefold())
+    current_tokens = re.findall(r"[a-z]+|\d+", current_stage.casefold())
+
+    if not previous_tokens or len(previous_tokens) != len(current_tokens):
+        return False
+
+    for previous_token, current_token in zip(
+        previous_tokens,
+        current_tokens,
+        strict=True,
+    ):
+        if previous_token.isdigit() or current_token.isdigit():
+            if previous_token != current_token:
+                return False
+            continue
+
+        similarity = SequenceMatcher(
+            None,
+            previous_token,
+            current_token,
+        ).ratio()
+        if similarity < _MIN_STAGE_MATCH_RATIO:
+            return False
+
+    return True
+
+
 def normalize_report_table(table: Tag) -> list[list[str]]:
     """Convert an HTML table with row and column spans to a rectangular matrix.
 
@@ -188,8 +265,8 @@ def normalize_report_table(table: Tag) -> list[list[str]]:
     rows. A cell with ``colspan`` occupies multiple logical columns: its text
     is placed in the first column and the remaining covered columns are blank.
 
-    Empty values in the first two columns carry forward from the preceding row,
-    preserving the report-table behavior used by the parser.
+    Empty Stage cells carry forward. Empty Item cells carry forward only while
+    the stage matches the stage associated with the last explicit item value.
     """
 
     def read_span(cell: Tag, attribute: str) -> int:
@@ -267,15 +344,33 @@ def normalize_report_table(table: Tag) -> list[list[str]]:
         for row in grid_rows
     ]
 
-    # Preserve the existing rule that blank Stage/Item cells continue the
-    # preceding value.
-    previous_values: dict[int, str] = {}
+    # Carry-forward logic below requires both Stage and Item columns.
+    if column_count < 2:
+        return []
+
+    # Item names can continue through blank rows within a stage, but a new
+    # stage must not inherit the preceding stage's item.
+    previous_stage = ""
+    previous_item = ""
+    previous_item_stage = ""
     for row in matrix:
-        for column, value in enumerate(row):
-            if column in (0, 1) and value == "":
-                row[column] = previous_values.get(column, "")
-            elif value != "":
-                previous_values[column] = value
+        stage = row[0]
+        if stage == "":
+            stage = previous_stage
+            row[0] = stage
+        elif previous_stage and not _stage_names_match(previous_stage, stage):
+            previous_item = ""
+            previous_item_stage = ""
+
+        if stage:
+            previous_stage = stage
+
+        item = row[1]
+        if item:
+            previous_item = item
+            previous_item_stage = stage
+        elif previous_item and _stage_names_match(previous_item_stage, stage):
+            row[1] = previous_item
 
     return matrix
 

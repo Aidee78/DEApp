@@ -55,6 +55,7 @@ def parse_production_activities(
         print(subject)
         matrix = normalize_report_table(table)
         records = matrix_to_records(matrix)
+        print(records)
         activities.extend(
             record_to_production_activity(record, FIELD_BY_HEADER)
             for record in records

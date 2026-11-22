@@ -19,7 +19,11 @@ from deapp.models.excel import (
     sifting,
 )
 
-from deapp.services.excel import to_dispensing_record
+from deapp.services.excel import (
+    to_dispensing_record,
+    to_granulation_record,
+    to_sifting_record,
+)
 
 from deapp.models.extracted_data import ReportExtractedData
 from deapp.models.excel.field import FlaggedValue
@@ -95,7 +99,20 @@ class Converter:
         ...
 
     def get_granulation_records(self,) -> list[granulation.GranulationRecord]:
-        ...
+        records: list[granulation.GranulationRecord] = []
+        records.extend(
+            to_granulation_record.get_granulation_records_from_processing_report(
+                self.processing_reports,
+            ),
+        )
+        records.extend(
+            to_granulation_record.get_granulation_records_from_ipqc_report(
+                self.ipqc_reports,
+            ),
+        )
+
+        consolidated_records = consolidate_records(records)
+        return remove_completely_empty_records(consolidated_records)
 
     def get_overprinting_records(self,) -> list[overprinting.OverprintingRecord]:
         ...
@@ -104,4 +121,31 @@ class Converter:
         ...
 
     def get_sifting_records(self,) -> list[sifting.SiftingRecord]:
-            ...
+        records: list[sifting.SiftingRecord] = []
+        records.extend(
+            to_sifting_record.get_sifting_records_from_processing_report(
+                self.processing_reports,
+            ),
+        )
+        records.extend(
+            to_sifting_record.get_sifting_records_from_ipqc_report(
+                self.ipqc_reports,
+            ),
+        )
+
+        print(f"records returned:")
+        print(f"Count: {len(records)}")
+        print(records)
+        
+        deduplicated_records = remove_duplicates(records)
+        print(f"deduplicated_records returned:")
+        print(f"Count: {len(deduplicated_records)}")
+        print(deduplicated_records)
+        
+        consolidated_records = consolidate_records(deduplicated_records)
+        print(f"consolidated_records returned:")
+        print(f"Count: {len(consolidated_records)}")
+        print(consolidated_records)
+        
+        only_valid_records = remove_completely_empty_records(consolidated_records)
+        return only_valid_records

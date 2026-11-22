@@ -43,9 +43,9 @@ def to_datetime(value: str | None) -> FlaggedValue:
 
 def to_shift(value: str | None) -> FlaggedValue:
     """Return 'Day' or 'Night' when exactly one shift is mentioned."""
-    if not isinstance(value, str):
+    if value is None:
         # The value was not a string, it is not even parseable
-        return FlaggedValue(None, 2)
+        return FlaggedValue("Day", 3)
     
     if not value.strip():
         # It was a string but empty
@@ -219,6 +219,10 @@ def to_batch_number(
         if digits:
             return FlaggedValue(value, 0)
 
+    value = to_valid_string(value)
+    if not value:
+        return FlaggedValue(None, 1)
+     
     return FlaggedValue(None, 2)
 
 def to_extract_kg_quantity(value: str | None) -> FlaggedValue:

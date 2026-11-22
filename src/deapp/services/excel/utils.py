@@ -23,8 +23,144 @@ PRODUCTS = {
     "11": "ASTAMENTIN 625MG"
 }
 
-_WORD_RE = re.compile(r"[A-Za-z]+")
-_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
+
+
+def to_quantity_kg_and_tabs(
+    value: str | None,
+) -> tuple[FlaggedValue[float | None], FlaggedValue[float | None]]:
+    """Extract kilograms and tablet count, assigning flags for missing values."""
+    text = to_valid_string(value)
+
+    if not text:
+        return FlaggedValue(None, 1), FlaggedValue(None, 1)
+
+    _UNIT_NUMBER_RE = re.compile(
+        r"(?<![A-Za-z0-9_])"
+        r"(?P<number>\d+(?:,\d{3})*(?:[ \t]*\.[ \t]*\d+)?)"
+        r"[ \t]*(?P<unit>kg|k\.g\.?|tabs?|tablets?)(?![A-Za-z0-9_])",
+        re.IGNORECASE,
+    )
+    
+    matches = list(_UNIT_NUMBER_RE.finditer(text))
+    kg_matches = []
+    tab_matches = []
+
+    for match in matches:
+        unit = match.group("unit").casefold().replace(".", "")
+        if unit == "kg":
+            kg_matches.append(match)
+        else:
+            tab_matches.append(match)
+
+    # Repeated measurements are ambiguous, so don't guess.
+    if len(kg_matches) > 1 or len(tab_matches) > 1:
+        return FlaggedValue(None, 2), FlaggedValue(None, 2)
+
+    def number_value(match: re.Match[str]) -> float:
+        number = "".join(match.group("number").split()).replace(",", "")
+        return float(number)
+
+    if kg_matches and tab_matches:
+        return (
+            FlaggedValue(number_value(kg_matches[0]), 0),
+            FlaggedValue(number_value(tab_matches[0]), 0),
+        )
+
+    if not matches:
+        return FlaggedValue(None, 2), FlaggedValue(None, 2)
+
+    # Check for other letters after removing the recognized measurement.
+    remaining = list(text)
+    for match in matches:
+        for index in range(match.start(), match.end()):
+            remaining[index] = " "
+
+    missing_flag = 2 if any(char.isalpha() for char in remaining) else 1
+
+    quantity_kg = number_value(kg_matches[0]) if kg_matches else None
+    quantity_tabs = number_value(tab_matches[0]) if tab_matches else None
+
+    return (
+        FlaggedValue(quantity_kg, 0)
+        if kg_matches
+        else FlaggedValue(None, missing_flag),
+        FlaggedValue(quantity_tabs, 0)
+        if tab_matches
+        else FlaggedValue(None, missing_flag),
+    )
+
+
+def to_quantity_kg_and_drums(
+    value: str | None,
+) -> tuple[FlaggedValue[float | None], FlaggedValue[float | None]]:
+    """Extract kilograms and drum count, assigning flags for missing values."""
+    text = to_valid_string(value)
+
+    # Empty after conversion: both values are absent with flag 0.
+    if not text:
+        return FlaggedValue(None, 1), FlaggedValue(None, 1)
+
+    _UNIT_NUMBER_RE = re.compile(
+        r"(?<![A-Za-z0-9_])"
+        r"(?P<number>\d+(?:[ \t]*\.[ \t]*\d+)?)"
+        r"[ \t]*(?P<unit>kg|k\.g\.?|drums?)(?![A-Za-z0-9_])",
+        re.IGNORECASE,
+    )
+
+    matches = list(_UNIT_NUMBER_RE.finditer(text))
+
+    kg_matches = []
+    drum_matches = []
+
+    for match in matches:
+        unit = match.group("unit").casefold().replace(".", "")
+        if unit == "kg":
+            kg_matches.append(match)
+        else:
+            drum_matches.append(match)
+
+    # Treat repeated measurements as ambiguous rather than guessing.
+    if len(kg_matches) > 1 or len(drum_matches) > 1:
+        return FlaggedValue(None, 2), FlaggedValue(None, 2)
+
+    # Both values were found.
+    if kg_matches and drum_matches:
+        quantity_kg = float("".join(kg_matches[0].group("number").split()))
+        drums = float("".join(drum_matches[0].group("number").split()))
+        return FlaggedValue(quantity_kg, 0), FlaggedValue(drums, 0)
+
+    # Neither unit was found in this non-empty string.
+    if not matches:
+        return FlaggedValue(None, 2), FlaggedValue(None, 2)
+
+    # Remove the recognized measurement before checking for other letters.
+    remaining = list(text)
+    for match in matches:
+        for index in range(match.start(), match.end()):
+            remaining[index] = " "
+
+    missing_flag = 2 if any(char.isalpha() for char in remaining) else 1
+
+    quantity_kg = (
+        float("".join(kg_matches[0].group("number").split()))
+        if kg_matches
+        else None
+    )
+    drums = (
+        float("".join(drum_matches[0].group("number").split()))
+        if drum_matches
+        else None
+    )
+
+    return (
+        FlaggedValue(quantity_kg, 0)
+        if kg_matches
+        else FlaggedValue(None, missing_flag),
+        FlaggedValue(drums, 0)
+        if drum_matches
+        else FlaggedValue(None, missing_flag),
+    )
+
 
 def _one_typo_away(word: str, target: str) -> bool:
     word = word.casefold()
@@ -67,6 +203,9 @@ def to_coarse_powder(
 
     if not text:
         return FlaggedValue(None, 1), FlaggedValue(None, 1)
+
+    _WORD_RE = re.compile(r"[A-Za-z]+")
+    _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")  
 
     exact_labels: dict[str, list[tuple[str, int, int]]] = {
         "coarse": [],

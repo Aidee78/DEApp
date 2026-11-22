@@ -21,6 +21,4 @@ class GranulationRecord:
     status: FlaggedValue[str | None]
     remarks: FlaggedValue[str | None]
     received_at: datetime
-    shift: FlaggedValue[str | None] = field(
-        default_factory=lambda: FlaggedValue[str | None](None),
-    )
+    shift: FlaggedValue[str | None]

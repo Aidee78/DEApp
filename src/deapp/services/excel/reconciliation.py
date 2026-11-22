@@ -49,8 +49,11 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
                 raise TypeError(f"Record field {name!r} must be a FlaggedValue.")
             if value.value is None:
                 has_complete_activity_key = False
-            key.extend((value.value, value.flag))
-
+            if name == "shift":
+                key.extend((value.value, None))
+            else:
+                key.extend((value.value, value.flag))
+                
         if not has_complete_activity_key:
             # Keep incomplete-key records as individual, unchanged records.
             groups.append((False, [record]))

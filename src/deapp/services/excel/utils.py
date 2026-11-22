@@ -23,6 +23,121 @@ PRODUCTS = {
     "11": "ASTAMENTIN 625MG"
 }
 
+_WORD_RE = re.compile(r"[A-Za-z]+")
+_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
+
+def _one_typo_away(word: str, target: str) -> bool:
+    word = word.casefold()
+    target = target.casefold()
+
+    if word == target:
+        return True
+
+    if abs(len(word) - len(target)) > 1:
+        return False
+
+    if len(word) == len(target):
+        differences = [
+            index
+            for index, (left, right) in enumerate(zip(word, target))
+            if left != right
+        ]
+        if len(differences) == 1:
+            return True
+        return (
+            len(differences) == 2
+            and word[differences[0]] == target[differences[1]]
+            and word[differences[1]] == target[differences[0]]
+        )
+
+    longer, shorter = (
+        (word, target) if len(word) > len(target) else (target, word)
+    )
+    return any(
+        longer[:index] + longer[index + 1:] == shorter
+        for index in range(len(longer))
+    )
+
+
+def to_coarse_powder(
+    value: str | None,
+) -> tuple[FlaggedValue[float | None], FlaggedValue[float | None]]:
+    """Extract coarse and fine powder percentages, with quality flags."""
+    text = to_valid_string(value)
+
+    if not text:
+        return FlaggedValue(None, 1), FlaggedValue(None, 1)
+
+    exact_labels: dict[str, list[tuple[str, int, int]]] = {
+        "coarse": [],
+        "fine": [],
+    }
+    fuzzy_labels: dict[str, list[tuple[str, int, int]]] = {
+        "coarse": [],
+        "fine": [],
+    }
+
+    for match in _WORD_RE.finditer(text):
+        word = match.group().casefold()
+        label: str | None = None
+
+        if word == "coarse":
+            exact_labels["coarse"].append(
+                ("coarse", match.start(), match.end())
+            )
+        elif word in {"fine", "fines"}:
+            exact_labels["fine"].append(
+                ("fine", match.start(), match.end())
+            )
+        elif _one_typo_away(word, "coarse"):
+            fuzzy_labels["coarse"].append(
+                ("coarse", match.start(), match.end())
+            )
+        elif (
+            _one_typo_away(word, "fine")
+            or _one_typo_away(word, "fines")
+        ):
+            fuzzy_labels["fine"].append(
+                ("fine", match.start(), match.end())
+            )
+
+    labels = (
+        exact_labels["coarse"] or fuzzy_labels["coarse"]
+    ) + (
+        exact_labels["fine"] or fuzzy_labels["fine"]
+    )
+    labels.sort(key=lambda label: label[1])
+
+    labeled_values: dict[str, list[float]] = {
+        "coarse": [],
+        "fine": [],
+    }
+
+    for index, (label, _, value_start) in enumerate(labels):
+        value_end = (
+            labels[index + 1][1]
+            if index + 1 < len(labels)
+            else len(text)
+        )
+        match = _NUMBER_RE.search(text, value_start, value_end)
+        if match:
+            labeled_values[label].append(float(match.group()))
+
+    if (
+        len(labeled_values["coarse"]) == 1
+        and len(labeled_values["fine"]) == 1
+    ):
+        return (
+            FlaggedValue(labeled_values["coarse"][0], 0),
+            FlaggedValue(labeled_values["fine"][0], 0),
+        )
+
+    numbers = [float(match.group()) for match in _NUMBER_RE.finditer(text)]
+    if len(numbers) == 2:
+        return FlaggedValue(numbers[0], 3), FlaggedValue(numbers[1], 3)
+
+    return FlaggedValue(None, 2), FlaggedValue(None, 2)
+
 def to_datetime(value: str | None) -> FlaggedValue:
     """Convert an ISO date or datetime string; return None if empty or invalid."""
     if not isinstance(value, str):
@@ -392,3 +507,39 @@ def to_remarks(
 
 
     return FlaggedValue(f"{challenges}. || {action_taken_remarks}.", 0)
+
+
+
+def contains_close_word(text: str, target: str, cutoff: float = 0.9) -> bool:
+    words = re.findall(r"[a-z]+", text.casefold())
+    return any(
+        SequenceMatcher(None, word, target).ratio() >= cutoff
+        for word in words
+    )
+
+def to_idle_duration(value: str | None) -> FlaggedValue[time | None]:
+    """Parse an elapsed HH:MM[:SS] duration without applying shift offsets."""
+    if value is None:
+        return FlaggedValue(None, 1)
+    if not isinstance(value, str):
+        return FlaggedValue(None, 2)
+
+    normalized = re.sub(r"\s+", "", value)
+    if not normalized or re.fullmatch(r"[-=]+", normalized):
+        return FlaggedValue(None, 1)
+
+    match = re.fullmatch(
+        r"(?P<hours>\d{1,2}):(?P<minutes>\d{1,2})"
+        r"(?::(?P<seconds>\d{1,2}))?",
+        normalized,
+    )
+    if match is None:
+        return FlaggedValue(None, 2)
+
+    hours = int(match.group("hours"))
+    minutes = int(match.group("minutes"))
+    seconds = int(match.group("seconds") or 0)
+    if hours > 23 or minutes > 59 or seconds > 59:
+        return FlaggedValue(None, 2)
+
+    return FlaggedValue(time(hours, minutes, seconds), 0)

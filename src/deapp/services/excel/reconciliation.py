@@ -22,8 +22,8 @@ _MEASURE_FIELDS = (
     "output",
     "quantity_tabs",
     "drums",
-    "coarse_kg",
-    "powder_kg",
+    "coarse_percent",
+    "powder_percent",
     "number_of_cartons",
 )
 

@@ -285,6 +285,22 @@ def normalize_report_table(table: Tag) -> list[list[str]]:
             )
         return span
 
+    def read_cell_text(cell: Tag) -> str:
+        """Preserve text between inline tags and turn explicit breaks into spaces."""
+        parts: list[str] = []
+
+        for node in cell.descendants:
+            if isinstance(node, Comment):
+                continue
+            if isinstance(node, Tag):
+                if node.name == "br":
+                    parts.append(" ")
+                continue
+
+            parts.append(str(node))
+
+        return re.sub(r"\s+", " ", "".join(parts)).strip()
+
     html_rows = table.find_all("tr")
     if not html_rows:
         return []
@@ -318,7 +334,7 @@ def normalize_report_table(table: Tag) -> list[list[str]]:
             ):
                 next_column += 1
 
-            value = " ".join(cell.stripped_strings).replace("\n", " ")
+            value = read_cell_text(cell)
 
             for offset in range(colspan):
                 column = next_column + offset
@@ -373,7 +389,6 @@ def normalize_report_table(table: Tag) -> list[list[str]]:
             row[1] = previous_item
 
     return matrix
-
 
 def matrix_to_records(
     matrix: list[list[str]],

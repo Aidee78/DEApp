@@ -5,6 +5,7 @@ from difflib import SequenceMatcher
 from fractions import Fraction
 
 from deapp.models.excel.field import FlaggedValue
+from deapp.models.extracted_data import ExtractedData, ProductionActivity
 
 
 PRODUCTION_LINES = [
@@ -14,20 +15,27 @@ PRODUCTION_LINES = [
 ]
 PRODUCTS = {
     "01" : "ORS X3", 
-    "05": "ASTAMENTIN 60ML",
-    "06": "ASTAPICIN 60ML",
-    "07": "ASTARCLOX 60ML",
-    "08": "ASTAMOCIL 60ML",
-    "09": "ASTARCLOX 500MG",
-    "10": "ASTAMOCIL 500MG",
-    "11": "ASTAMENTIN 625MG"
+    "05" : "ASTAMENTIN 60ML",
+    "06" : "ASTAPICIN 60ML",
+    "07" : "ASTARCLOX 60ML",
+    "08" : "ASTAMOCIL 60ML",
+    "09" : "ASTARCLOX 500MG",
+    "10" : "ASTAMOCIL 500MG",
+    "11" : "ASTAMENTIN 625MG",
+    "16" : "NESLIN 250MG",
+    "17" : "NAZAMOX 250MG",
 }
 
+def to_filling_production_line(extracted_data: ExtractedData, activity: ProductionActivity) -> FlaggedValue:
+    line = to_production_line(extracted_data.production_line)
+    stage = activity.stage
+    num = _extract_whole_number(stage) or ""
 
+    return FlaggedValue(f"{line.value} {num}", line.flag)
 
 def to_quantity_kg_and_tabs(
     value: str | None,
-) -> tuple[FlaggedValue[float | None], FlaggedValue[float | None]]:
+) -> tuple[FlaggedValue, FlaggedValue]:
     """Extract kilograms and tablet count, assigning flags for missing values."""
     text = to_valid_string(value)
 
@@ -36,11 +44,11 @@ def to_quantity_kg_and_tabs(
 
     _UNIT_NUMBER_RE = re.compile(
         r"(?<![A-Za-z0-9_])"
-        r"(?P<number>\d+(?:,\d{3})*(?:[ \t]*\.[ \t]*\d+)?)"
+        r"(?P<number>\d+(?:[ \t]*,[ \t]*\d{3})*(?:[ \t]*\.[ \t]*\d+)?)"
         r"[ \t]*(?P<unit>kg|k\.g\.?|tabs?|tablets?)(?![A-Za-z0-9_])",
         re.IGNORECASE,
     )
-    
+
     matches = list(_UNIT_NUMBER_RE.finditer(text))
     kg_matches = []
     tab_matches = []
@@ -69,13 +77,32 @@ def to_quantity_kg_and_tabs(
     if not matches:
         return FlaggedValue(None, 2), FlaggedValue(None, 2)
 
-    # Check for other letters after removing the recognized measurement.
+    # Remove recognized measurements before looking for one unlabelled value.
     remaining = list(text)
     for match in matches:
         for index in range(match.start(), match.end()):
             remaining[index] = " "
 
-    missing_flag = 2 if any(char.isalpha() for char in remaining) else 1
+    remaining_text = "".join(remaining)
+    unlabelled_number_pattern = re.compile(
+        r"(?<![\w.,/])"
+        r"(?P<number>\d+(?:[ \t]*,[ \t]*\d{3})*(?:[ \t]*\.[ \t]*\d+)?)"
+        r"(?![\w.,/])",
+    )
+    unlabelled_numbers = list(unlabelled_number_pattern.finditer(remaining_text))
+
+    if len(unlabelled_numbers) == 1:
+        other_quantity = FlaggedValue(number_value(unlabelled_numbers[0]), 0)
+        if kg_matches:
+            return FlaggedValue(number_value(kg_matches[0]), 0), other_quantity
+        return other_quantity, FlaggedValue(number_value(tab_matches[0]), 0)
+
+    missing_flag = (
+        2
+        if len(unlabelled_numbers) > 1
+        or any(char.isalpha() for char in remaining_text)
+        else 1
+    )
 
     quantity_kg = number_value(kg_matches[0]) if kg_matches else None
     quantity_tabs = number_value(tab_matches[0]) if tab_matches else None
@@ -161,6 +188,136 @@ def to_quantity_kg_and_drums(
         else FlaggedValue(None, missing_flag),
     )
 
+def to_drums_kg_and_capsules(
+    value: str | None,
+) -> tuple[
+    FlaggedValue[float | None],
+    FlaggedValue[float | None],
+    FlaggedValue[float | None],
+]:
+    """Extract drum count, kg quantity, and capsule count from a string."""
+    text = to_valid_string(value)
+
+    if not text:
+        return (
+            FlaggedValue(None, 1),
+            FlaggedValue(None, 1),
+            FlaggedValue(None, 1),
+        )
+
+    number_pattern = re.compile(
+        r"(?<![\d.,/])"
+        r"(?P<number>\d+(?:[ \t]*,[ \t]*\d{3})*(?:[ \t]*\.[ \t]*\d+)?)"
+        r"(?![\d.,/])"
+    )
+    word_pattern = re.compile(r"[A-Za-z]+(?:\.[A-Za-z]+)*")
+
+    numbers = list(number_pattern.finditer(text))
+    words = list(word_pattern.finditer(text))
+
+    def one_typo_apart(left: str, right: str) -> bool:
+        """Return whether words differ by one edit or adjacent transposition."""
+        if left == right or abs(len(left) - len(right)) > 1:
+            return left == right
+
+        if len(left) == len(right):
+            differences = [
+                index
+                for index, (left_char, right_char) in enumerate(zip(left, right))
+                if left_char != right_char
+            ]
+            if len(differences) == 1:
+                return True
+            return (
+                len(differences) == 2
+                and differences[1] == differences[0] + 1
+                and left[differences[0]] == right[differences[1]]
+                and left[differences[1]] == right[differences[0]]
+            )
+
+        longer, shorter = (left, right) if len(left) > len(right) else (right, left)
+        return any(
+            longer[:index] + longer[index + 1 :] == shorter
+            for index in range(len(longer))
+        )
+
+    def matches_anchor(word: str, kind: str) -> bool:
+        normalized = word.casefold().replace(".", "")
+
+        aliases = {
+            "drums": ("drum", "drums"),
+            "kg": ("kg", "kgs", "kilogram", "kilograms"),
+            "capsules": ("cap", "caps", "capsule", "capsules"),
+        }[kind]
+
+        for alias in aliases:
+            if normalized == alias:
+                return True
+
+            # Avoid treating a one-letter word such as "g" as the "kg" anchor.
+            if alias == "kg" and len(normalized) == 2:
+                if one_typo_apart(normalized, alias):
+                    return True
+            elif len(normalized) >= 3 and len(alias) >= 3:
+                if one_typo_apart(normalized, alias):
+                    return True
+
+        return False
+
+    def number_before_anchor(anchor: re.Match[str], kind: str) -> float | None:
+        preceding = [number for number in numbers if number.end() <= anchor.start()]
+        if not preceding:
+            return None
+
+        number = max(preceding, key=lambda match: match.end())
+        words_between = [
+            word
+            for word in words
+            if number.end() <= word.start() and word.end() <= anchor.start()
+        ]
+
+        if kind in ("drums", "kg"):
+            # The count or quantity must directly precede its unit.
+            if words_between:
+                return None
+        else:
+            # Allow a short descriptor such as "Filled" before "Capsules".
+            if len(words_between) > 2:
+                return None
+            if any(
+                matches_anchor(word.group(), other_kind)
+                for word in words_between
+                for other_kind in ("drums", "kg", "capsules")
+            ):
+                return None
+
+        numeric_text = "".join(number.group("number").split()).replace(",", "")
+        return float(numeric_text)
+
+    def extract(kind: str) -> float | None:
+        anchors = [
+            word for word in words
+            if matches_anchor(word.group(), kind)
+        ]
+        found = [
+            number
+            for anchor in anchors
+            if (number := number_before_anchor(anchor, kind)) is not None
+        ]
+
+        # Leave repeated measurements empty rather than guessing.
+        return found[0] if len(found) == 1 else None
+
+    drums = extract("drums")
+    quantity_kg = extract("kg")
+    capsules = extract("capsules")
+
+    # the way I am handling here, sometimes it will return false negatives
+    return (
+        FlaggedValue(drums, 0) if drums else FlaggedValue(None, 2),
+        FlaggedValue(quantity_kg, 0) if quantity_kg else FlaggedValue(None, 2),
+        FlaggedValue(capsules, 0) if quantity_kg else FlaggedValue(None, 2),
+    )
 
 def _one_typo_away(word: str, target: str) -> bool:
     word = word.casefold()
@@ -547,7 +704,7 @@ def to_personnel_names(value: str | None) -> FlaggedValue:
 
     return FlaggedValue(_consolidate_names(value.replace(".", " ")), 0)
 
-def to_valid_string(value: str | None) -> str | None:
+def to_valid_string(value: str | None) -> str:
     if not isinstance(value, str):
         return ""
     

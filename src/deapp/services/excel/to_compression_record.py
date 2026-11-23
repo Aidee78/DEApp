@@ -1,7 +1,5 @@
 """Convert processing and IPQC report activities into compression records."""
 
-from datetime import time
-import re
 
 from deapp.models.excel.field import FlaggedValue
 from deapp.models.excel.compression import CompressionRecord

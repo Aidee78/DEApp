@@ -1,8 +1,5 @@
 """Convert processing and IPQC report activities into granulation records."""
 
-from datetime import time
-import re
-
 from deapp.models.excel.field import FlaggedValue
 from deapp.models.excel.granulation import GranulationRecord
 from deapp.models.extracted_data import ProductionActivity, ReportExtractedData

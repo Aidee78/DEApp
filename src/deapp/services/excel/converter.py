@@ -24,7 +24,9 @@ from deapp.services.excel import (
     to_granulation_record,
     to_blending_record,
     to_compression_record,
+    to_coating_record,
     to_sifting_record,
+    to_filling_record,
 )
 
 from deapp.models.extracted_data import ReportExtractedData
@@ -94,7 +96,35 @@ class Converter:
         ...
 
     def get_coating_records(self,) -> list[coating.CoatingRecord]:
-        ...
+        records: list[coating.CoatingRecord] = []
+
+        records.extend(
+            to_coating_record.get_coating_records_from_processing_report(
+                self.processing_reports,
+            ),
+        )
+        records.extend(
+            to_coating_record.get_coating_records_from_ipqc_report(
+                self.ipqc_reports,
+            ),
+        )
+        
+        print(f"records returned:")
+        print(f"Count: {len(records)}")
+        print(records)
+        
+        deduplicated_records = remove_duplicates(records)
+        print(f"deduplicated_records returned:")
+        print(f"Count: {len(deduplicated_records)}")
+        print(deduplicated_records)
+        
+        consolidated_records = consolidate_records(deduplicated_records)
+        print(f"consolidated_records returned:")
+        print(f"Count: {len(consolidated_records)}")
+        print(consolidated_records)
+        
+        only_valid_records = remove_completely_empty_records(consolidated_records)
+        return only_valid_records
 
     def get_compression_records(self,) -> list[compression.CompressionRecord]:
         records: list[compression.CompressionRecord] = []
@@ -152,7 +182,30 @@ class Converter:
         
 
     def get_filling_records(self,) -> list[filling.FillingRecord]:
-        ...
+        records: list[filling.FillingRecord] = []
+        
+        records.extend(
+            to_filling_record.get_filling_records_from_ipqc_report(
+                self.ipqc_reports,
+            ),
+        )
+        
+        print(f"records returned:")
+        print(f"Count: {len(records)}")
+        print(records)
+        
+        deduplicated_records = remove_duplicates(records)
+        print(f"deduplicated_records returned:")
+        print(f"Count: {len(deduplicated_records)}")
+        print(deduplicated_records)
+        
+        consolidated_records = consolidate_records(deduplicated_records)
+        print(f"consolidated_records returned:")
+        print(f"Count: {len(consolidated_records)}")
+        print(consolidated_records)
+        
+        only_valid_records = remove_completely_empty_records(consolidated_records)
+        return only_valid_records
 
     def get_granulation_records(self,) -> list[granulation.GranulationRecord]:
         records: list[granulation.GranulationRecord] = []

@@ -213,8 +213,8 @@ def _all_present_fields_are_empty_flagged_1(
 
 
 def remove_completely_empty_records(records: Iterable[RecordT]) -> list[RecordT]:
-    """Remove unbatched records whose available time and measure fields are all empty."""
-    kept: list[RecordT] = []
+    """Remove completely empty unbatched records and order the rest by receipt time."""
+    kept: list[tuple[datetime, RecordT]] = []
 
     for record in records:
         if not is_dataclass(record) or isinstance(record, type):
@@ -224,6 +224,10 @@ def remove_completely_empty_records(records: Iterable[RecordT]) -> list[RecordT]
         if not isinstance(batch_number, FlaggedValue):
             raise TypeError("Record field 'batch_number' must be a FlaggedValue.")
 
+        received_at = getattr(record, "received_at", None)
+        if not isinstance(received_at, datetime):
+            raise TypeError("Record field 'received_at' must be a datetime.")
+
         should_remove = (
             batch_number.value is None
             and batch_number.flag == 1
@@ -232,6 +236,8 @@ def remove_completely_empty_records(records: Iterable[RecordT]) -> list[RecordT]
         )
 
         if not should_remove:
-            kept.append(record)
+            kept.append((received_at, record))
 
-    return kept
+    # Python's sort is stable, so equal timestamps retain their input order.
+    kept.sort(key=lambda entry: entry[0])
+    return [record for _, record in kept]

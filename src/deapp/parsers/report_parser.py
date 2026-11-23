@@ -44,7 +44,7 @@ def parse_production_activities(
     subject: str | None = None,
     received_at: datetime,
 ) -> ReportExtractedData:
-    """Extract activity rows from every table in an IPQC email."""
+    """Extract activity rows from every table in an email."""
 
     extracted_production_data: list[ExtractedData] = []
 

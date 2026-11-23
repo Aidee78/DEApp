@@ -89,9 +89,9 @@ def test_live_zoho_processing_and_ipqc_to_granulation_records() -> None:
         processing_reports=parsed_reports["processing report"],
         store_packaging_reports=[],
     )
-    compression_records = converter.get_compression_records()
+    compression_records = converter.get_filling_records()
 
-    print(f"Compression records returned for {processing_date}:")
+    print(f"Filling records returned for {processing_date}:")
     print(f"Count: {len(compression_records)}")
     for index, record in enumerate(compression_records, start=1):
         print(f"{index}. {record!r}")

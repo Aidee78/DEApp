@@ -8,19 +8,19 @@ from deapp.models.excel.field import FlaggedValue
 class BlisteringRecord:
     """One blistering activity with per-field consistency flags."""
 
-    date: FlaggedValue[datetime]
-    machine: FlaggedValue[str]
-    product: FlaggedValue[str]
-    batch_number: FlaggedValue[str]
-    officer: FlaggedValue[str]
-    start_time: FlaggedValue[time]
-    stop_time: FlaggedValue[time]
-    idle_time: FlaggedValue[time]
-    output: FlaggedValue[float]
-    status: FlaggedValue[str]
-    remarks: FlaggedValue[str]
-    challenges: FlaggedValue[str]
+    date: FlaggedValue[datetime | None]
+    machine: FlaggedValue[str | None]
+    product: FlaggedValue[str | None]
+    batch_number: FlaggedValue[str | None]
+    officer: FlaggedValue[str | None]
+    start_time: FlaggedValue[time | None]
+    stop_time: FlaggedValue[time | None]
+    idle_time: FlaggedValue[time | None]
+    output: FlaggedValue[float | None]
+    drums: FlaggedValue[float | None]
+    quantity_kg: FlaggedValue[float | None]
+    status: FlaggedValue[str | None]
+    remarks: FlaggedValue[str | None]
+    shift: FlaggedValue[str | None]
     received_at: datetime
-    shift: FlaggedValue[str | None] = field(
-        default_factory=lambda: FlaggedValue[str | None](None),
-    )
+    report_type: str | None

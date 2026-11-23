@@ -8,6 +8,7 @@ from deapp.services.excel import utils
 
 def get_filling_records_from_ipqc_report(
     ipqc_reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[FillingRecord]:
     """Extract filling records from ipqc reports."""
     records: list[FillingRecord] = []
@@ -71,6 +72,7 @@ def get_filling_records_from_ipqc_report(
                             ),
                             received_at=report.received_at,
                             shift=shift,
+                            report_type=report_name
                         ),
                     )
     

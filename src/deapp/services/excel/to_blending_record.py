@@ -5,7 +5,7 @@ from deapp.services.excel import utils
 
 
 
-def get_blending_records_from_processing_report(processing_reports: list[ReportExtractedData]) -> list[BlendingRecord]:
+def get_blending_records_from_processing_report(processing_reports: list[ReportExtractedData], report_name: str) -> list[BlendingRecord]:
     """Extract blending records from processing reports."""
     records: list[BlendingRecord] = []
     
@@ -65,6 +65,7 @@ def get_blending_records_from_processing_report(processing_reports: list[ReportE
                             ),
                             received_at=report.received_at,
                             shift=shift,
+                            report_type=report_name,
                         ),
                     )
     
@@ -73,6 +74,7 @@ def get_blending_records_from_processing_report(processing_reports: list[ReportE
 
 def get_blending_records_from_ipqc_report(
     ipqc_reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[BlendingRecord]:
     """Extract granulation records from IPQC reports."""
     records: list[BlendingRecord] = []
@@ -133,6 +135,7 @@ def get_blending_records_from_ipqc_report(
                             ),
                             received_at=report.received_at,
                             shift=shift,
+                            report_type=report_name
                         ),
                     )
     

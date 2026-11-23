@@ -7,6 +7,7 @@ from deapp.services.excel import utils
 
 def get_granulation_records_from_processing_report(
     processing_reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[GranulationRecord]:
     """Extract granulation records from processing reports."""
     records: list[GranulationRecord] = []
@@ -67,6 +68,7 @@ def get_granulation_records_from_processing_report(
                             ),
                             received_at=report.received_at,
                             shift=shift,
+                            report_type=report_name
                         ),
                     )
     
@@ -75,6 +77,7 @@ def get_granulation_records_from_processing_report(
 
 def get_granulation_records_from_ipqc_report(
     ipqc_reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[GranulationRecord]:
     """Extract granulation records from IPQC reports."""
     records: list[GranulationRecord] = []
@@ -136,6 +139,7 @@ def get_granulation_records_from_ipqc_report(
                             ),
                             received_at=report.received_at,
                             shift=shift,
+                            report_type=report_name,
                         ),
                     )
     

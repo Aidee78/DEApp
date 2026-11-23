@@ -57,6 +57,8 @@ def test_live_zoho_processing_and_ipqc_to_granulation_records() -> None:
     )
     processing_messages = messages_by_type.get("processing report", [])
     ipqc_messages = messages_by_type.get("ipqc report", [])
+    packaging_messages = messages_by_type.get("packaging report", [])
+    store_packaging_messages = messages_by_type.get("store packaging report", [])
 
     assert processing_messages, (
         f"No processing reports found for {processing_date}."
@@ -66,10 +68,15 @@ def test_live_zoho_processing_and_ipqc_to_granulation_records() -> None:
     parsed_reports: dict[str, list[ReportExtractedData]] = {
         "processing report": [],
         "ipqc report": [],
+        "packaging report": [], 
+        "store packaging report": [],       
     }
+
     for type_name, messages in (
         ("processing report", processing_messages),
         ("ipqc report", ipqc_messages),
+        ("packaging report", packaging_messages),
+        ("store packaging report", store_packaging_messages),
     ):
         for message in messages:
             report = parse_production_activities(
@@ -85,13 +92,13 @@ def test_live_zoho_processing_and_ipqc_to_granulation_records() -> None:
 
     converter = Converter(
         ipqc_reports=parsed_reports["ipqc report"],
-        packaging_reports=[],
+        packaging_reports=parsed_reports["packaging report"],
         processing_reports=parsed_reports["processing report"],
-        store_packaging_reports=[],
+        store_packaging_reports=parsed_reports["store packaging report"],
     )
-    compression_records = converter.get_filling_records()
+    compression_records = converter.get_packaging_records()
 
-    print(f"Filling records returned for {processing_date}:")
+    print(f"Packaging records returned for {processing_date}:")
     print(f"Count: {len(compression_records)}")
     for index, record in enumerate(compression_records, start=1):
         print(f"{index}. {record!r}")

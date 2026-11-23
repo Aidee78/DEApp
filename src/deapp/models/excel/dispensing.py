@@ -21,3 +21,5 @@ class DispensingRecord:
     status: FlaggedValue[str | None]
     remarks: FlaggedValue[str | None]
     received_at: datetime
+    report_type: str | None
+    

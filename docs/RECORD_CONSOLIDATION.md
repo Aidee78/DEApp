@@ -44,30 +44,27 @@ This filter concerns extracted records only. It does not establish workbook dupl
 
 ## Matching records
 
-Two records refer to the same activity only when they have the same record type and the same values **and flags** for all three key fields:
+Records can be consolidated only within the same dataclass class and when all three activity-key values are present and match, including their flags:
 
 - `date`
 - `shift`
 - `batch_number`
 
-A `None` value is compared like any other key value. Thus two records with `None` for a key field match on that field when their flags also match. A difference in any key value or key flag keeps the records in separate groups.
+Records with an incomplete activity key remain separate. A complete-key group is consolidated only when it contains at least two distinct `report_type` values. Records with only one `report_type` remain separate. When a cross-report group is consolidated, the resulting record's `report_type` is set to `None` because it represents more than one source.
 
 ## Choosing field values
 
-For each field, resolve its `FlaggedValue` independently:
+For each `FlaggedValue` field in a cross-report group:
 
-1. If at least one candidate value is not `None`, ignore candidates whose value is `None`.
-2. Among remaining candidates, the current implementation chooses the lowest flag. This was written for the prior `0` and `3` flag set; it is not an approved precedence rule for the newly defined flags `1` and `2`.
-3. If candidates have the same flag, choose the value from the record with the latest `received_at`.
-4. If all candidate values are `None`, use the value and flag from the latest record.
+1. If at least one candidate value is not `None`, choose the populated value from the candidate with the latest `received_at` and set the resulting flag to `3`. This also applies when other candidates are `None` or when populated values are equal.
+2. If different populated values tie at the latest `received_at`, keep the first candidate and set the resulting flag to `3`.
+3. If all candidate values are `None`, use the field from the latest record; differing input flags produce flag `3`.
 
 The consolidated record's `received_at` is the latest `received_at` among all records in its group.
 
-When different non-`None` values remain tied on both flag and latest `received_at`, the current implementation selects the first candidate and marks the result with flag `3`. This makes the selected value dependent on input order. The business rule does not define a winner for this exact tie, so this behavior is not an approved resolution and should be replaced by an explicit outcome.
-
 ## Officer names
 
-For the `officer` field, combine the names from all non-`None` values. Split comma-separated values, trim surrounding whitespace, remove repeated names, preserve first-seen order, and join the result with `, `. The officer field's flag follows the same lowest-flag and latest-`received_at` rules above. If every officer value is `None`, use the flag from the latest record. The flag precedence for `1` and `2` remains unresolved here as well.
+The `officer` field follows the same latest-value rule as other `FlaggedValue` fields. A cross-report consolidation keeps the latest populated officer value and sets its flag to `3`; it does not combine names from separate records.
 
 ## Current implementation and verification status
 

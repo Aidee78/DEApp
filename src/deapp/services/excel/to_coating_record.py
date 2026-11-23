@@ -7,6 +7,7 @@ from deapp.services.excel import utils
 
 def get_coating_records_from_processing_report(
     processing_reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[CoatingRecord]:
     """Extract coating records from processing reports."""
     records: list[CoatingRecord] = []
@@ -67,6 +68,7 @@ def get_coating_records_from_processing_report(
                             ),
                             received_at=report.received_at,
                             shift=shift,
+                            report_type=report_name
                         ),
                     )
     
@@ -75,6 +77,7 @@ def get_coating_records_from_processing_report(
 
 def get_coating_records_from_ipqc_report(
     ipqc_reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[CoatingRecord]:
     """Extract coating records from ipqc reports."""
     records: list[CoatingRecord] = []
@@ -135,6 +138,7 @@ def get_coating_records_from_ipqc_report(
                             ),
                             received_at=report.received_at,
                             shift=shift,
+                            report_type=report_name
                         ),
                     )
     

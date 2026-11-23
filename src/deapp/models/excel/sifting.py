@@ -8,18 +8,17 @@ from deapp.models.excel.field import FlaggedValue
 class SiftingRecord:
     """One sifting activity with per-field consistency flags."""
 
-    date: FlaggedValue[datetime]
-    line: FlaggedValue[str]
-    product: FlaggedValue[str]
-    batch_number: FlaggedValue[str]
-    officer: FlaggedValue[str]
-    start_time: FlaggedValue[time]
-    stop_time: FlaggedValue[time]
-    idle_time: FlaggedValue[time]
-    quantity_kg: FlaggedValue[float]
-    status: FlaggedValue[str]
-    remarks: FlaggedValue[str]
-    received_at: datetime
-    shift: FlaggedValue[str | None] = field(
-        default_factory=lambda: FlaggedValue[str | None](None),
-    )
+    date: FlaggedValue[datetime | None]
+    line: FlaggedValue[str | None]
+    product: FlaggedValue[str | None]
+    batch_number: FlaggedValue[str | None]
+    officer: FlaggedValue[str | None]
+    start_time: FlaggedValue[time | None]
+    stop_time: FlaggedValue[time | None]
+    idle_time: FlaggedValue[time | None]
+    quantity_kg: FlaggedValue[float | None]
+    status: FlaggedValue[str | None]
+    remarks: FlaggedValue[str | None]
+    shift: FlaggedValue[str | None]
+    received_at: datetime 
+    report_type: str | None

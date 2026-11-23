@@ -13,6 +13,7 @@ PRODUCTION_LINES = [
     "Capsule",
     "Tablet"
 ]
+
 PRODUCTS = {
     "01" : "ORS X3", 
     "05" : "ASTAMENTIN 60ML",
@@ -25,6 +26,51 @@ PRODUCTS = {
     "16" : "NESLIN 250MG",
     "17" : "NAZAMOX 250MG",
 }
+
+MACHINE_BY_LINE = {
+    "Capsule 1": "ALU/PVC 1",
+    "Capsule 2": "ALU/PVC 2",
+    "Tablet": "ALU/ALU",
+}
+
+PRODUCT_PIECES_PER_CARTON ={
+    # product code and number of peices per carton
+    "01" : 56, 
+    "05" : 40,
+    "06" : 100,
+    "07" : 100,
+    "08" : 100,
+    "09" : 100,
+    "10" : 100,
+    "11" : 200,
+    "16" : 200,
+    "17" : 200,
+}
+
+def to_blistering_machine(
+    extracted_data: ExtractedData,
+    activity: ProductionActivity,
+) -> FlaggedValue[str | None]:
+    """Resolve the blistering machine from the filling production line."""
+    filling_line = to_filling_production_line(extracted_data, activity)
+
+    if filling_line.flag == 2 or not isinstance(filling_line.value, str):
+        return FlaggedValue(None, 2)
+
+    line_name = filling_line.value.strip()
+
+    # The filling-line helper can append the activity-stage number.
+    if re.fullmatch(r"Tablet(?: \d+)?", line_name):
+        line_name = "Tablet"
+
+    
+    machine = MACHINE_BY_LINE.get(line_name)
+
+    if machine is None:
+        return FlaggedValue(None, 2)
+
+    return FlaggedValue(machine, filling_line.flag)
+
 
 def to_filling_production_line(extracted_data: ExtractedData, activity: ProductionActivity) -> FlaggedValue:
     line = to_production_line(extracted_data.production_line)
@@ -708,7 +754,7 @@ def to_valid_string(value: str | None) -> str:
     if not isinstance(value, str):
         return ""
     
-    if value.strip()[::-1] == value.strip():
+    if not any(character.isalnum() for character in value):
         return ""
 
     return value
@@ -839,3 +885,297 @@ def to_idle_duration(value: str | None) -> FlaggedValue[time | None]:
         return FlaggedValue(None, 2)
 
     return FlaggedValue(time(hours, minutes, seconds), 0)
+
+def to_drums_kg_and_blisters(
+    value: str | None,
+    mc_no: str | None,
+) -> tuple[
+    FlaggedValue[float | None],
+    FlaggedValue[float | None],
+    FlaggedValue[float | None],
+]:
+    """Extract drum count, kg quantity, and blister count from activity text."""
+    from html import unescape
+
+    def valid_part(raw: str | None) -> str:
+        text_part = to_valid_string(raw)
+        if text_part:
+            return text_part
+
+        # to_valid_string treats palindromes such as "7" as empty.
+        # Keep numeric-only values so they can count as unlabelled blisters.
+        if isinstance(raw, str) and re.fullmatch(
+            r"\d+(?:[ \t]*,[ \t]*\d{3})*(?:[ \t]*\.[ \t]*\d+)?",
+            raw.strip(),
+        ):
+            return raw
+        return ""
+
+    text = " ".join(
+        part for part in (valid_part(value), valid_part(mc_no)) if part
+    )
+    text = unescape(text).replace("\u00a0", " ").strip()
+
+    if not text:
+        return (
+            FlaggedValue(None, 1),
+            FlaggedValue(None, 1),
+            FlaggedValue(None, 1),
+        )
+
+    number_pattern = re.compile(
+        r"(?<![\d.,/])"
+        r"(?P<number>\d+(?:[ \t]*,[ \t]*\d{3})*(?:[ \t]*\.[ \t]*\d+)?)"
+        r"(?![\d.,/])"
+    )
+    word_pattern = re.compile(r"[A-Za-z]+(?:\.[A-Za-z]+)*")
+
+    numbers = list(number_pattern.finditer(text))
+    words = list(word_pattern.finditer(text))
+
+    aliases = {
+        "drums": ("drum", "drums"),
+        "kg": ("kg", "kgs", "kilogram", "kilograms"),
+        "blisters": (
+            "blister",
+            "blisters",
+            "blistered",
+            "blistering",
+            "sachet",
+            "sachets",
+            "bs",
+        ),
+    }
+
+    def one_typo_apart(left: str, right: str) -> bool:
+        """Match one insertion, deletion, replacement, or adjacent transposition."""
+        if left == right or abs(len(left) - len(right)) > 1:
+            return left == right
+
+        if len(left) == len(right):
+            differences = [
+                index
+                for index, (left_char, right_char) in enumerate(zip(left, right))
+                if left_char != right_char
+            ]
+            if len(differences) == 1:
+                return True
+            return (
+                len(differences) == 2
+                and differences[1] == differences[0] + 1
+                and left[differences[0]] == right[differences[1]]
+                and left[differences[1]] == right[differences[0]]
+            )
+
+        longer, shorter = (
+            (left, right) if len(left) > len(right) else (right, left)
+        )
+        return any(
+            longer[:index] + longer[index + 1 :] == shorter
+            for index in range(len(longer))
+        )
+
+    def is_anchor(word: str, kind: str) -> bool:
+        normalized = word.casefold().replace(".", "")
+
+        for alias in aliases[kind]:
+            if normalized == alias:
+                return True
+
+            # Keep short labels exact to reduce accidental unit matches.
+            if alias == "bs":
+                continue
+            if alias == "kg" and normalized in {"mg", "g"}:
+                continue
+
+            if len(normalized) >= 3 and len(alias) >= 3:
+                if one_typo_apart(normalized, alias):
+                    return True
+            elif alias == "kg" and len(normalized) == 2:
+                if one_typo_apart(normalized, alias):
+                    return True
+
+        return False
+
+    def find_labelled_numbers(kind: str) -> dict[tuple[int, int], float]:
+        """Find numbers associated with one recognized unit or label."""
+        found: dict[tuple[int, int], float] = {}
+
+        for word in words:
+            if not is_anchor(word.group(), kind):
+                continue
+
+            preceding = [
+                number for number in numbers if number.end() <= word.start()
+            ]
+            if not preceding:
+                continue
+
+            number = max(preceding, key=lambda match: match.end())
+            words_between = [
+                other_word
+                for other_word in words
+                if number.end() <= other_word.start()
+                and other_word.end() <= word.start()
+            ]
+
+            if kind in {"drums", "kg"} and words_between:
+                continue
+
+            if kind == "blisters":
+                if len(words_between) > 2:
+                    continue
+                if any(
+                    is_anchor(other_word.group(), "drums")
+                    or is_anchor(other_word.group(), "kg")
+                    for other_word in words_between
+                ):
+                    continue
+
+            number_text = (
+                number.group("number").replace(",", "").replace(" ", "")
+            )
+            found[(number.start(), number.end())] = float(number_text)
+
+        return found
+
+    drum_values = find_labelled_numbers("drums")
+    kg_values = find_labelled_numbers("kg")
+    blister_values = find_labelled_numbers("blisters")
+
+    # A single unlabelled number is treated as the blister count.
+    used_spans = set(drum_values) | set(kg_values) | set(blister_values)
+    unlabelled_values = {
+        (number.start(), number.end()): float(
+            number.group("number").replace(",", "").replace(" ", "")
+        )
+        for number in numbers
+        if (number.start(), number.end()) not in used_spans
+    }
+    blister_values.update(unlabelled_values)
+
+    def flagged_result(
+        values: dict[tuple[int, int], float],
+    ) -> FlaggedValue[float | None]:
+        if len(values) == 1:
+            return FlaggedValue(next(iter(values.values())), 0)
+        return FlaggedValue(None, 2)
+
+    return (
+        flagged_result(drum_values),
+        flagged_result(kg_values),
+        flagged_result(blister_values),
+    )
+
+def to_number_of_cartons(
+    value: str | None,
+    batch_no: str | None,
+) -> FlaggedValue[float | None]:
+    """Convert carton and piece quantities into equivalent cartons.
+
+    Two unlabelled numbers are interpreted as cartons then pieces only when
+    the input contains no words. For a single number, a recognizable unit
+    label is required.
+    """
+    text = to_valid_string(value).strip()
+    if not text:
+        return FlaggedValue(None, 1)
+
+    if not isinstance(batch_no, str) or len(batch_no.strip()) < 2:
+        return FlaggedValue(None, 2)
+
+    product_code = batch_no.strip()[:2]
+    pieces_per_carton = PRODUCT_PIECES_PER_CARTON.get(product_code)
+    if not isinstance(pieces_per_carton, (int, float)) or pieces_per_carton <= 0:
+        return FlaggedValue(None, 2)
+
+    carton_words = (
+        "carton", "cartons", "cartoon", "cartoons",
+        "ctn", "ctns", "cton", "ctons", "crt", "crtn",
+    )
+    piece_words = (
+        "piece", "pieces", "pc", "pcs", "pce", "pces", "pice", "pices",
+    )
+
+    def classify_unit(word: str) -> str | None:
+        """Recognize carton or piece labels, including common OCR typos."""
+        normalized = word.casefold()
+
+        if normalized in carton_words:
+            return "cartons"
+        if normalized in piece_words:
+            return "pieces"
+
+        # Fuzzy matching is limited to longer words so short labels such as
+        # "pc" and "ctn" are handled only by their explicit aliases.
+        if len(normalized) < 4:
+            return None
+
+        carton_score = max(
+            SequenceMatcher(None, normalized, alias).ratio()
+            for alias in carton_words
+            if len(alias) >= 4
+        )
+        piece_score = max(
+            SequenceMatcher(None, normalized, alias).ratio()
+            for alias in piece_words
+            if len(alias) >= 4
+        )
+
+        if max(carton_score, piece_score) < 0.74:
+            return None
+        if abs(carton_score - piece_score) < 0.08:
+            return None
+
+        return "cartons" if carton_score > piece_score else "pieces"
+
+    number_pattern = re.compile(
+        r"(?<![\d,.\-])\d+(?:,\d{3})*(?:\.\d+)?(?![\d,.])"
+    )
+    word_pattern = re.compile(r"[A-Za-z]+")
+
+    number_matches = list(number_pattern.finditer(text))
+    words = word_pattern.findall(text)
+    numbers = [
+        float(match.group().replace(",", ""))
+        for match in number_matches
+    ]
+    units = [
+        unit
+        for word in words
+        if (unit := classify_unit(word)) is not None
+    ]
+
+    if len(numbers) == 1 and len(units) == 1:
+        if units[0] == "cartons":
+            cartons, pieces = numbers[0], 0.0
+        else:
+            cartons, pieces = 0.0, numbers[0]
+
+    elif len(numbers) == 2:
+        if len(units) == 2 and units[0] != units[1]:
+            # Pair labels and numbers in the order they appear.
+            quantities = dict(zip(units, numbers))
+            cartons = quantities["cartons"]
+            pieces = quantities["pieces"]
+
+        elif len(units) == 1:
+            # A single recognized label identifies the first quantity;
+            # the second quantity is assumed to use the other unit.
+            if units[0] == "cartons":
+                cartons, pieces = numbers
+            else:
+                pieces, cartons = numbers
+
+        elif not units and not words:
+            # Final fallback for a string containing only numbers/separators.
+            cartons, pieces = numbers
+
+        else:
+            return FlaggedValue(None, 2)
+
+    else:
+        return FlaggedValue(None, 2)
+
+    result = cartons + (pieces / pieces_per_carton)
+    return FlaggedValue(result, 0)

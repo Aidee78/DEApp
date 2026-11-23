@@ -94,12 +94,12 @@ def get_daily_messages_by_subject(
     minimum_fuzzy_score: float = 0.70,
     ambiguity_margin: float = 0.08,
 ) -> dict[str, list[ZohoMessage]]:
-    """Group messages by subject, using fuzzy scores only for types without exact matches.
+    """Group messages by subject, fuzzy-matching subjects without exact matches.
 
     First, normalized accepted phrases are searched within each subject.
-    Then, subjects not matched in that pass are scored only against types
-    that received no exact matches. Fuzzy matches below the threshold or too
-    close to another type's score are left unclassified.
+    Then, subjects not matched in that pass are scored against every type.
+    Fuzzy matches below the threshold or too close to another type's score
+    are left unclassified.
 
     A type with no exact or confident fuzzy match has an empty list.
     """
@@ -149,16 +149,11 @@ def get_daily_messages_by_subject(
                 mail_client.get_message(account_id, metadata)
             )
 
-    # Fuzzy fallback applies only to types that had zero exact matches.
-    missing_exact_types = {
-        type_name
-        for type_name, messages in grouped.items()
-        if not messages
-    }
-    if not missing_exact_types:
-        return grouped
+    # Fuzzy fallback applies to unmatched subjects, regardless of whether
+    # other messages already matched a type exactly.
+    fuzzy_type_names = tuple(accepted_subjects_by_type)
 
-    # Pass 2: fuzzy-score only metadata rows not handled by the exact pass.
+    # Pass 2: fuzzy-score metadata rows not handled by the exact pass.
     for index, metadata in enumerate(metadata_rows):
         if index in exact_match_indices:
             continue
@@ -176,7 +171,7 @@ def get_daily_messages_by_subject(
                         fuzzy_signals_by_type[type_name],
                     ),
                 )
-                for type_name in missing_exact_types
+                for type_name in fuzzy_type_names
             ),
             key=lambda result: result[1],
             reverse=True,

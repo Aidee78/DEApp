@@ -8,19 +8,18 @@ from deapp.models.excel.field import FlaggedValue
 class OverprintingRecord:
     """One overprinting activity with per-field consistency flags."""
 
-    date: FlaggedValue[datetime]
-    line: FlaggedValue[str]
-    product: FlaggedValue[str]
-    batch_number: FlaggedValue[str]
-    start_time: FlaggedValue[time]
-    stop_time: FlaggedValue[time]
-    idle_time: FlaggedValue[time]
-    number_of_cartons: FlaggedValue[float]
-    officer: FlaggedValue[str]
-    status: FlaggedValue[str]
-    remarks: FlaggedValue[str]
-    challenges: FlaggedValue[str]
+    date: FlaggedValue[datetime | None]
+    line: FlaggedValue[str | None]
+    product: FlaggedValue[str | None]
+    batch_number: FlaggedValue[str | None]
+    start_time: FlaggedValue[time | None]
+    stop_time: FlaggedValue[time | None]
+    idle_time: FlaggedValue[time | None]
+    number_of_cartons: FlaggedValue[float | None]
+    officer: FlaggedValue[str | None]
+    status: FlaggedValue[str | None]
+    remarks: FlaggedValue[str | None]
+    challenges: FlaggedValue[str | None]
+    shift: FlaggedValue[str | None]
     received_at: datetime
-    shift: FlaggedValue[str | None] = field(
-        default_factory=lambda: FlaggedValue[str | None](None),
-    )
+    report_type: str | None

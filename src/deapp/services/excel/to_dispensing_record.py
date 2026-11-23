@@ -5,7 +5,10 @@ from deapp.services.excel import utils
 
 
 
-def get_dispensing_records_from_processing_report(processing_reports: list[ReportExtractedData]) -> list[DispensingRecord]:
+def get_dispensing_records_from_processing_report(
+    processing_reports: list[ReportExtractedData],
+    report_name: str,
+) -> list[DispensingRecord]:
     records: list[DispensingRecord] = []
 
 
@@ -65,12 +68,16 @@ def get_dispensing_records_from_processing_report(processing_reports: list[Repor
                                 production_activity.action_taken_remarks),
 
                                 received_at=processing_report.received_at,
+                                report_type=report_name
                             )
                         )
 
     return records
 
-def get_dispensing_records_from_store_packaging_report(store_packaging_reports: list[ReportExtractedData]) -> list[DispensingRecord]:
+def get_dispensing_records_from_store_packaging_report(
+    store_packaging_reports: list[ReportExtractedData],
+    report_name: str,
+) -> list[DispensingRecord]:
     records: list[DispensingRecord] = []
 
 
@@ -131,6 +138,7 @@ def get_dispensing_records_from_store_packaging_report(store_packaging_reports: 
                                 production_activity.action_taken_remarks),
 
                                 received_at=store_packaging_report.received_at,
+                                report_type=report_name,
                             )
                         )
 

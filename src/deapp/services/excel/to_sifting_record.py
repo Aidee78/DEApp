@@ -39,6 +39,7 @@ def _to_idle_duration(value: str | None) -> FlaggedValue[time | None]:
 
 def _get_sifting_records(
     reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[SiftingRecord]:
     """Convert every sifting activity in a collection of parsed reports."""
     records: list[SiftingRecord] = []
@@ -88,6 +89,7 @@ def _get_sifting_records(
                         ),
                         received_at=report.received_at,
                         shift=shift,
+                        report_type=report_name,
                     ),
                 )
 
@@ -96,13 +98,15 @@ def _get_sifting_records(
 
 def get_sifting_records_from_processing_report(
     processing_reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[SiftingRecord]:
     """Extract sifting records from processing reports."""
-    return _get_sifting_records(processing_reports)
+    return _get_sifting_records(processing_reports, report_name)
 
 
 def get_sifting_records_from_ipqc_report(
     ipqc_reports: list[ReportExtractedData],
+    report_name: str,
 ) -> list[SiftingRecord]:
     """Extract sifting records from IPQC reports."""
-    return _get_sifting_records(ipqc_reports)
+    return _get_sifting_records(ipqc_reports, report_name)

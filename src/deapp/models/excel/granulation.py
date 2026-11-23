@@ -20,5 +20,6 @@ class GranulationRecord:
     powder_percent: FlaggedValue[float | None]
     status: FlaggedValue[str | None]
     remarks: FlaggedValue[str | None]
-    received_at: datetime
     shift: FlaggedValue[str | None]
+    received_at: datetime
+    report_type: str | None

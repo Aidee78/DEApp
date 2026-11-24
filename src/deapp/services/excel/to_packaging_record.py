@@ -33,7 +33,6 @@ def get_packaging_records_from_packaging_report(
                         continue
 
                     print("zuzu")
-                    drums, quantity_kg, blisters = utils.to_drums_kg_and_blisters(activity.no, activity.mc_no)
         
                     records.append(
                         PackagingRecord(
@@ -105,9 +104,6 @@ def get_packaging_records_from_store_packaging_report(
                     ):
                         continue
 
-                    print("zuzu")
-                    drums, quantity_kg, blisters = utils.to_drums_kg_and_blisters(activity.no, activity.mc_no)
-        
                     records.append(
                         PackagingRecord(
                             date=utils.to_datetime(report.report_date),

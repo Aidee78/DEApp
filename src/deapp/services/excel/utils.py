@@ -14,8 +14,7 @@ PRODUCTION_LINES = [
     "Tablet"
 ]
 
-PRODUCTS = {
-    "01" : "ORS X3", 
+PRODUCTS = { 
     "05" : "ASTAMENTIN 60ML",
     "06" : "ASTAPICIN 60ML",
     "07" : "ASTARCLOX 60ML",
@@ -35,7 +34,6 @@ MACHINE_BY_LINE = {
 
 PRODUCT_PIECES_PER_CARTON ={
     # product code and number of peices per carton
-    "01" : 56, 
     "05" : 40,
     "06" : 100,
     "07" : 100,
@@ -1179,3 +1177,193 @@ def to_number_of_cartons(
 
     result = cartons + (pieces / pieces_per_carton)
     return FlaggedValue(result, 0)
+
+def cartons_packs_bundles_pieces(
+    value: str | None,
+    mc_no: str | None,
+) -> tuple[
+    FlaggedValue[float | None],
+    FlaggedValue[float | None],
+    FlaggedValue[float | None],
+    FlaggedValue[float | None],
+]:
+    """Parse carton, pack, bundle, and piece counts from activity text."""
+    parts = (
+        to_valid_string(value),
+        to_valid_string(mc_no),
+    )
+    text = " ".join(part.strip() for part in parts if part.strip())
+
+    if not text:
+        return (
+            FlaggedValue(None, 1),
+            FlaggedValue(None, 1),
+            FlaggedValue(None, 1),
+            FlaggedValue(None, 1),
+        )
+
+    aliases = {
+        "cartons": (
+            "carton", "cartons", "cartoon", "cartoons",
+            "ctn", "ctns", "cton", "ctons", "crt", "crtn",
+        ),
+        "packs": (
+            "pack", "packs", "pk", "pks", "pkt", "pkts", "pck", "pcks",
+        ),
+        "bundles": (
+            "bundle", "bundles", "bdl", "bdls", "bndl", "bndls",
+        ),
+        "pieces": (
+            "piece", "pieces", "pc", "pcs", "pce", "pces", "pice", "pices",
+        ),
+    }
+
+    def one_typo_apart(left: str, right: str) -> bool:
+        """Accept one insertion, deletion, replacement, or adjacent swap."""
+        if left == right:
+            return True
+        if abs(len(left) - len(right)) > 1:
+            return False
+
+        if len(left) == len(right):
+            differences = [
+                index
+                for index, (left_char, right_char) in enumerate(zip(left, right))
+                if left_char != right_char
+            ]
+            if len(differences) == 1:
+                return True
+            return (
+                len(differences) == 2
+                and differences[1] == differences[0] + 1
+                and left[differences[0]] == right[differences[1]]
+                and left[differences[1]] == right[differences[0]]
+            )
+
+        longer, shorter = (
+            (left, right) if len(left) > len(right) else (right, left)
+        )
+        return any(
+            longer[:index] + longer[index + 1:] == shorter
+            for index in range(len(longer))
+        )
+
+    def classify_unit(word: str) -> str | None:
+        """Recognize a quantity unit, including singulars and short forms."""
+        normalized = word.casefold().replace(".", "")
+
+        exact_matches = [
+            kind
+            for kind, unit_aliases in aliases.items()
+            if normalized in unit_aliases
+        ]
+        if len(exact_matches) == 1:
+            return exact_matches[0]
+        if exact_matches:
+            return None
+
+        # Keep short abbreviations exact to avoid accidental matches.
+        if len(normalized) < 4:
+            return None
+
+        fuzzy_matches = [
+            kind
+            for kind, unit_aliases in aliases.items()
+            if any(
+                len(alias) >= 4 and one_typo_apart(normalized, alias)
+                for alias in unit_aliases
+            )
+        ]
+        return fuzzy_matches[0] if len(fuzzy_matches) == 1 else None
+
+    number_pattern = re.compile(
+        r"(?<![\d.,/\-])"
+        r"(?P<number>\d+(?:[ \t]*,[ \t]*\d{3})*(?:[ \t]*\.[ \t]*\d+)?)"
+        r"(?![\d.,/])"
+    )
+    word_pattern = re.compile(r"[A-Za-z]+(?:\.[A-Za-z]+)*")
+
+    numbers = list(number_pattern.finditer(text))
+    word_units = [
+        (word, classify_unit(word.group()))
+        for word in word_pattern.finditer(text)
+    ]
+    recognized_units = [
+        (word, kind)
+        for word, kind in word_units
+        if kind is not None
+    ]
+
+    if not recognized_units:
+        return (
+            FlaggedValue(None, 2),
+            FlaggedValue(None, 2),
+            FlaggedValue(None, 2),
+            FlaggedValue(None, 2),
+        )
+
+    unit_names = ("cartons", "packs", "bundles", "pieces")
+    unit_counts = {
+        kind: sum(1 for _, found_kind in recognized_units if found_kind == kind)
+        for kind in unit_names
+    }
+
+    # A repeated unit makes the entire input unparseable.
+    if any(count > 1 for count in unit_counts.values()):
+        return (
+            FlaggedValue(None, 2),
+            FlaggedValue(None, 2),
+            FlaggedValue(None, 2),
+            FlaggedValue(None, 2),
+        )
+
+    values: dict[str, list[float]] = {
+        "cartons": [],
+        "packs": [],
+        "bundles": [],
+        "pieces": [],
+    }
+    malformed_units: set[str] = set()
+
+    for word, kind in recognized_units:
+        preceding_numbers = [
+            number for number in numbers if number.end() <= word.start()
+        ]
+        if not preceding_numbers:
+            malformed_units.add(kind)
+            continue
+
+        number = preceding_numbers[-1]
+
+        # Avoid assigning one quantity to multiple unit labels.
+        unit_before_this_one = any(
+            other_kind is not None
+            and number.end() <= other_word.start()
+            and other_word.end() <= word.start()
+            for other_word, other_kind in word_units
+        )
+        if unit_before_this_one:
+            malformed_units.add(kind)
+            continue
+
+        number_text = (
+            number.group("number")
+            .replace(",", "")
+            .replace(" ", "")
+        )
+        values[kind].append(float(number_text))
+
+    def result_for(kind: str) -> FlaggedValue[float | None]:
+        """Return one parsed quantity or its status."""
+        if kind in malformed_units or len(values[kind]) > 1:
+            return FlaggedValue(None, 2)
+        if values[kind]:
+            return FlaggedValue(values[kind][0], 0)
+        return FlaggedValue(0.0, 0)
+
+    return (
+        result_for("cartons"),
+        result_for("packs"),
+        result_for("bundles"),
+        result_for("pieces"),
+    )

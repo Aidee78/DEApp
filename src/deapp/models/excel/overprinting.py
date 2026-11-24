@@ -16,10 +16,12 @@ class OverprintingRecord:
     stop_time: FlaggedValue[time | None]
     idle_time: FlaggedValue[time | None]
     number_of_cartons: FlaggedValue[float | None]
+    number_of_packs: FlaggedValue[float | None]
+    number_of_bundles: FlaggedValue[float | None]
+    number_of_pieces: FlaggedValue[float | None]
     officer: FlaggedValue[str | None]
     status: FlaggedValue[str | None]
     remarks: FlaggedValue[str | None]
-    challenges: FlaggedValue[str | None]
     shift: FlaggedValue[str | None]
     received_at: datetime
     report_type: str | None

@@ -1,6 +1,5 @@
 from deapp.models.excel.blending import BlendingRecord
 from deapp.models.extracted_data import ReportExtractedData
-from deapp.models.excel.field import FlaggedValue
 from deapp.services.excel import utils
 
 
@@ -56,9 +55,7 @@ def get_blending_records_from_processing_report(processing_reports: list[ReportE
 
                             drums = drums,
 
-                            status=FlaggedValue(
-                                utils.to_valid_string(activity.status),
-                            ),
+                            status=utils.to_status(activity.status),
                             remarks=utils.to_remarks(
                                 activity.challenges,
                                 activity.action_taken_remarks,
@@ -126,9 +123,7 @@ def get_blending_records_from_ipqc_report(
     
                             drums = drums,
     
-                            status=FlaggedValue(
-                                utils.to_valid_string(activity.status),
-                            ),
+                            status=utils.to_status(activity.status),
                             remarks=utils.to_remarks(
                                 activity.challenges,
                                 activity.action_taken_remarks,

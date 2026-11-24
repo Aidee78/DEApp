@@ -195,7 +195,27 @@ class ExcelManager:
             raise ExcelWriteError(
                 f"Could not find worksheet {worksheet!r}."
             ) from error
-    
+
+    def _write_record(self, record, ws_name, table_name, columns) -> None: 
+        try:
+            ws = self._get_worksheet(ws_name)
+            row = self._next_row(
+                ws = ws,
+                table_name=table_name,
+                columns=columns
+            )
+
+            for col, attr in columns:
+                field = getattr(record, attr)
+                self._write_cell(ws, col, row, field)
+
+        except ExcelWriteError:
+            raise
+        except Exception as error:
+            raise ExcelWriteError(
+                "Could not write the blending record to the workbook."
+            ) from error
+        
     def write_blending_record(self, blending_record: blending.BlendingRecord) -> None:
         COLUMNS = [
             ("A", "date"),
@@ -215,48 +235,235 @@ class ExcelManager:
         WORKSHEET_NAME = "BLENDING"
         TABLE_NAME = "Table7"
 
-        try:
-            ws = self._get_worksheet(WORKSHEET_NAME)
-            row = self._next_row(
-                ws = ws,
-                table_name=TABLE_NAME,
-                columns= COLUMNS
-            )
-
-            for col, attr in COLUMNS:
-                field = getattr(blending_record, attr)
-                self._write_cell(ws, col, row, field)
-
-        except ExcelWriteError:
-            raise
-        except Exception as error:
-            raise ExcelWriteError(
-                "Could not write the blending record to the workbook."
-            ) from error
-
+        self._write_record(
+            record=blending_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
+        
     def write_blistering_record(self, blistering_record: blistering.BlisteringRecord) -> None:
-        raise ExcelWriteError("Blistering record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "machine"),
+            ("C", "product"),
+            ("D", "batch_number"),
+            ("E", "start_time"),
+            ("F", "stop_time"),
+            ("G", "idle_time"),
+            ("I", "output"),
+            ("J", "officer"),
+            ("K", "status"),
+            ("L", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "BLISTERING"
+        TABLE_NAME = "Table20"
+        
+        self._write_record(
+            record=blistering_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
 
     def write_coating_record(self, coating_record: coating.CoatingRecord) -> None:
-        raise ExcelWriteError("Coating record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "product"),
+            ("C", "batch_number"),
+            ("D", "officer"),
+            ("E", "start_time"),
+            ("F", "stop_time"),
+            ("H", "quantity_kg"),
+            ("I", "quantity_tabs"),
+            ("J", "status"),
+            ("K", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "COATING"
+        TABLE_NAME = "Table715"
+        
+        self._write_record(
+            record=coating_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
 
     def write_compression_record(self, compression_record: compression.CompressionRecord) -> None:
-        raise ExcelWriteError("Compression record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "product"),
+            ("C", "batch_number"),
+            ("D", "officer"),
+            ("E", "start_time"),
+            ("F", "stop_time"),
+            ("H", "quantity_kg"),
+            ("I", "quantity_tabs"),
+            ("J", "status"),
+            ("K", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "COMPRESSION"
+        TABLE_NAME = "Table16"
+        
+        self._write_record(
+            record=compression_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
 
     def write_dispensing_record(self, dispensing_record: dispensing.DispensingRecord) -> None:
-        raise ExcelWriteError("Dispensing record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "line"),
+            ("C", "product"),
+            ("D", "batch_number"),
+            ("E", "quantity_kg"),
+            ("F", "dispensing_room"),
+            ("G", "officer"),
+            ("H", "start_time"),
+            ("I", "stop_time"),
+            ("K", "status"),
+            ("L", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "DISPENSING"
+        TABLE_NAME = "Table5"
+        
+        self._write_record(
+            record=dispensing_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
 
     def write_filling_record(self, filling_record: filling.FillingRecord) -> None:
-        raise ExcelWriteError("Filling record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "line"),
+            ("C", "product"),
+            ("D", "batch_number"),
+            ("E", "start_time"),
+            ("F", "stop_time"),
+            ("G", "idle_time"),
+            ("I", "output"),
+            ("K", "drums"),
+            ("L", "officer"),
+            ("M", "status"),
+            ("N", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "FILLING"
+        TABLE_NAME = "Table18"
+        
+        self._write_record(
+            record=filling_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
 
     def write_granulation_record(self, granulation_record: granulation.GranulationRecord) -> None:
-        raise ExcelWriteError("Granulation record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "product"),
+            ("C", "batch_number"),
+            ("D", "officer"),
+            ("E", "start_time"),
+            ("F", "stop_time"),
+            ("H", "coarse_percent"),
+            ("I", "powder_percent"),
+            ("J", "status"),
+            ("K", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "GRANULATION"
+        TABLE_NAME = "Table13"
+        
+        self._write_record(
+            record=granulation_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
 
     def write_overprinting_record(self, overprinting_record: overprinting.OverprintingRecord) -> None:
-        raise ExcelWriteError("Overprinting record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "line"),
+            ("C", "product"),
+            ("D", "batch_number"),
+            ("E", "start_time"),
+            ("F", "stop_time"),
+            ("G", "idle_time"),
+            ("I", "number_of_cartons"),
+            ("J", "number_of_packs"),
+            ("K", "number_of_bundles"),
+            ("L", "number_of_pieces"),
+            ("M", "officer"),
+            ("N", "status"),
+            ("O", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "OVERPRINTING"
+        TABLE_NAME = "Table21"
+        
+        self._write_record(
+            record=overprinting_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
 
     def write_packaging_record(self, packaging_record: packaging.PackagingRecord) -> None:
-        raise ExcelWriteError("Packaging record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "line"),
+            ("C", "product"),
+            ("D", "batch_number"),
+            ("E", "start_time"),
+            ("F", "stop_time"),
+            ("G", "idle_time"),
+            ("I", "number_of_cartons"),
+            ("J", "officer"),
+            ("K", "status"),
+            ("L", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "PACKAGING"
+        TABLE_NAME = "Table17"
+        
+        self._write_record(
+            record=packaging_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )
 
     def write_sifting_record(self, sifting_record: sifting.SiftingRecord) -> None:
-        raise ExcelWriteError("Sifting record writing is not implemented.")
+        COLUMNS = [
+            ("A", "date"),
+            ("B", "line"),
+            ("C", "product"),
+            ("D", "batch_number"),
+            ("E", "officer"),
+            ("F", "start_time"),
+            ("G", "stop_time"),
+            ("H", "idle_time"),
+            ("J", "number_of_cartons"),
+            ("K", "status"),
+            ("L", "remarks"),
+        ]
+        
+        WORKSHEET_NAME = "SIFTING"
+        TABLE_NAME = "Table6"
+        
+        self._write_record(
+            record=sifting_record,
+            ws_name=WORKSHEET_NAME,
+            table_name=TABLE_NAME,
+            columns=COLUMNS,
+        )

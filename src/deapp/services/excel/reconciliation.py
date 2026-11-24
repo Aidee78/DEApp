@@ -29,6 +29,9 @@ _MEASURE_FIELDS = (
     "coarse_percent",
     "powder_percent",
     "number_of_cartons",
+    "number_of_packs",
+    "number_of_bundles",
+    "number_of_pieces",
 )
 
 
@@ -44,110 +47,187 @@ def remove_duplicates(records: Iterable[T]) -> list[T]:
 
 
 def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
-    """Merge complete-key records only when their report types differ."""
-    groups: list[tuple[bool, list[RecordT]]] = []
-    group_positions: dict[tuple[Any, ...], int] = {}
+    """Apply the same-time blending pass, then merge cross-report records.
 
+    Activity keys match by their values, regardless of key-field flags.
+    Records with an incomplete key remain separate.
+    """
+    from deapp.models.excel.blending import BlendingRecord
+
+    record_list: list[RecordT] = []
     for record in records:
         if not is_dataclass(record) or isinstance(record, type):
             raise TypeError("Each record must be a dataclass instance.")
+        record_list.append(record)
 
+    def activity_key(record: RecordT) -> tuple[Any, ...] | None:
+        """Return the value-based key, or None when the key is incomplete."""
         key: list[Any] = [type(record)]
-        has_complete_activity_key = True
 
         for name in _ACTIVITY_KEY_FIELDS:
             value = getattr(record, name, None)
             if not isinstance(value, FlaggedValue):
                 raise TypeError(f"Record field {name!r} must be a FlaggedValue.")
             if value.value is None:
-                has_complete_activity_key = False
-            key.extend((value.value, value.flag))
+                return None
+            key.append(value.value)
 
-        if not has_complete_activity_key:
-            # Keep incomplete-key records as individual, unchanged records.
-            groups.append((False, [record]))
-            continue
+        return tuple(key)
 
-        group_key = tuple(key)
-        position = group_positions.get(group_key)
-        if position is None:
-            group_positions[group_key] = len(groups)
-            groups.append((True, [record]))
-        else:
-            groups[position][1].append(record)
-
-    def newest(candidates: list[Candidate]) -> list[Candidate]:
-        latest_time = max(record.received_at for _, record in candidates)
-        return [
-            (value, record)
-            for value, record in candidates
-            if record.received_at == latest_time
-        ]
-
-    def choose_field(candidates: list[Candidate]) -> FlaggedValue[Any]:
-        populated = [
-            (value, record)
-            for value, record in candidates
-            if value.value is not None
-        ]
-        flag_conflict = len({value.flag for value, _ in candidates}) > 1
-
-        # If every value is None, keep the latest record's field unless the
-        # input flags conflict.
-        if not populated:
-            finalists = newest(candidates)
-            chosen = finalists[0][0]
-            if flag_conflict:
-                return replace(chosen, flag=INCONSISTENT_FLAG)
-            return chosen
-
-        # Any comparison involving a populated value is marked inconsistent.
-        # If the latest timestamps tie, input order chooses the first value.
-        latest_time = max(record.received_at for _, record in populated)
-        chosen = next(
-            value
-            for value, record in populated
-            if record.received_at == latest_time
-        )
-        return replace(chosen, flag=INCONSISTENT_FLAG)
-
-    consolidated: list[RecordT] = []
-
-    for can_consolidate, group in groups:
-        if not can_consolidate:
-            consolidated.append(group[0])
-            continue
-
-        report_types = {
-            getattr(record, "report_type", None)
-            for record in group
-        }
-        if len(report_types) < 2:
-            # Repeated records from one report type remain separate.
-            consolidated.extend(group)
-            continue
-
+    def merge_fields(
+        first: RecordT,
+        second: RecordT,
+        *,
+        same_report_same_time: bool = False,
+    ) -> RecordT:
+        """Merge two records using the Stage 1 and Stage 2 field rules."""
         updates: dict[str, Any] = {}
-        updates["report_type"] = None
+        latest = second if second.received_at >= first.received_at else first
 
-        for record_field in fields(group[0]):
+        for record_field in fields(first):
             name = record_field.name
             if name in {"received_at", "report_type"}:
                 continue
 
-            candidates: list[Candidate] = []
-            for record in group:
-                value = getattr(record, name)
-                if not isinstance(value, FlaggedValue):
-                    raise TypeError(
-                        f"Record field {name!r} must be a FlaggedValue."
+            left = getattr(first, name)
+            right = getattr(second, name)
+
+            if not isinstance(left, FlaggedValue) or not isinstance(
+                right, FlaggedValue
+            ):
+                raise TypeError(f"Record field {name!r} must be a FlaggedValue.")
+
+            if same_report_same_time:
+                # Stage 1: the last processed record's field wins.
+                updates[name] = right
+                continue
+
+            if name == "remarks":
+                if left.value is None and right.value is None:
+                    updates[name] = FlaggedValue(
+                        None, max(left.flag, right.flag)
                     )
-                candidates.append((value, record))
+                elif left.value is None:
+                    updates[name] = right
+                elif right.value is None:
+                    updates[name] = left
+                else:
+                    updates[name] = FlaggedValue(
+                        f"{left.value}. {right.value}",
+                        0,
+                    )
+                continue
 
-            updates[name] = choose_field(candidates)
+            if name == "officer":
+                if left.value is None and right.value is None:
+                    updates[name] = FlaggedValue(
+                        None, max(left.flag, right.flag)
+                    )
+                elif left.value is None:
+                    updates[name] = right
+                elif right.value is None:
+                    updates[name] = left
+                else:
+                    names: list[str] = []
+                    for source in (left.value, right.value):
+                        for officer_name in source.split(","):
+                            officer_name = officer_name.strip()
+                            if officer_name and officer_name not in names:
+                                names.append(officer_name)
 
-        updates["received_at"] = max(record.received_at for record in group)
-        consolidated.append(cast(RecordT, replace(group[0], **updates)))
+                    updates[name] = FlaggedValue(
+                        ", ".join(names),
+                        min(left.flag, right.flag),
+                    )
+                continue
+
+            if left.value is None and right.value is None:
+                updates[name] = FlaggedValue(
+                    None, max(left.flag, right.flag)
+                )
+            elif left.value is None:
+                updates[name] = right
+            elif right.value is None:
+                updates[name] = left
+            elif left.value == right.value:
+                updates[name] = FlaggedValue(
+                    left.value,
+                    min(left.flag, right.flag),
+                )
+            else:
+                # Different populated values use the latest value and flag 3.
+                selected = getattr(latest, name)
+                updates[name] = FlaggedValue(selected.value, 3)
+
+        updates["received_at"] = latest.received_at
+        updates["report_type"] = latest.report_type
+
+        return cast(RecordT, replace(first, **updates))
+
+    # Stage A: combine same-key BlendingRecords from the same report and
+    # identical receipt timestamp. Sequential folding makes input order the
+    # tie-breaker when more than two records match.
+    stage_a: list[RecordT] = []
+    blending_positions: dict[tuple[Any, ...], int] = {}
+
+    for record in record_list:
+        key = activity_key(record)
+        if (
+            key is None
+            or not isinstance(record, BlendingRecord)
+            or not hasattr(record, "report_type")
+        ):
+            stage_a.append(record)
+            continue
+
+        stage_a_key = (*key, record.report_type, record.received_at)
+        position = blending_positions.get(stage_a_key)
+
+        if position is None:
+            blending_positions[stage_a_key] = len(stage_a)
+            stage_a.append(record)
+        else:
+            stage_a[position] = merge_fields(
+                stage_a[position],
+                record,
+                same_report_same_time=True,
+            )
+
+    # return stage_a
+
+    # Stage B: group remaining complete-key records and merge only when
+    # multiple report types are represented.
+    groups: list[list[RecordT]] = []
+    group_positions: dict[tuple[Any, ...], int] = {}
+
+    for record in stage_a:
+        key = activity_key(record)
+        if key is None:
+            groups.append([record])
+            continue
+
+        position = group_positions.get(key)
+        if position is None:
+            group_positions[key] = len(groups)
+            groups.append([record])
+        else:
+            groups[position].append(record)
+
+    consolidated: list[RecordT] = []
+
+    for group in groups:
+        report_types = {getattr(record, "report_type", None) for record in group}
+
+        # A group consolidates only across distinct report types.
+        if len(report_types) < 2:
+            consolidated.extend(group)
+            continue
+
+        merged = group[0]
+        for record in group[1:]:
+            merged = merge_fields(merged, record)
+
+        consolidated.append(merged)
 
     return consolidated
 
@@ -201,8 +281,8 @@ def remove_completely_empty_records(records: Iterable[RecordT]) -> list[RecordT]
             )
 
         should_remove = (
-            batch_number.value is None
-            and batch_number.flag == 1
+            (batch_number.value is None
+            and batch_number.flag == 1)
             and _all_present_fields_are_empty(
                 record,
                 _TIME_FIELDS,

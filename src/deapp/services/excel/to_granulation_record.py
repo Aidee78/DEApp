@@ -1,6 +1,5 @@
 """Convert processing and IPQC report activities into granulation records."""
 
-from deapp.models.excel.field import FlaggedValue
 from deapp.models.excel.granulation import GranulationRecord
 from deapp.models.extracted_data import ProductionActivity, ReportExtractedData
 from deapp.services.excel import utils
@@ -59,9 +58,7 @@ def get_granulation_records_from_processing_report(
 
                             powder_percent = powder_percent,
 
-                            status=FlaggedValue(
-                                utils.to_valid_string(activity.status),
-                            ),
+                            status=utils.to_status(activity.status),
                             remarks=utils.to_remarks(
                                 activity.challenges,
                                 activity.action_taken_remarks,
@@ -130,9 +127,7 @@ def get_granulation_records_from_ipqc_report(
 
                             powder_percent = powder_percent,
 
-                            status=FlaggedValue(
-                                utils.to_valid_string(activity.status),
-                            ),
+                            status=utils.to_status(activity.status),
                             remarks=utils.to_remarks(
                                 activity.challenges,
                                 activity.action_taken_remarks,

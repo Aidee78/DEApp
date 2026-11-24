@@ -1,6 +1,5 @@
 """Convert store_packaging and packaging report activities into packaging records."""
 
-from deapp.models.excel.field import FlaggedValue
 from deapp.models.excel.packaging import PackagingRecord
 from deapp.models.extracted_data import ProductionActivity, ReportExtractedData
 from deapp.services.excel import utils
@@ -59,9 +58,7 @@ def get_packaging_records_from_packaging_report(
 
                             number_of_cartons=utils.to_number_of_cartons(activity.no_of_cartons,activity.batch_no,),
                             
-                            status=FlaggedValue(
-                                utils.to_valid_string(activity.status),
-                            ),
+                            status=utils.to_status(activity.status),
                             remarks=utils.to_remarks(
                                 activity.challenges,
                                 activity.action_taken_remarks,
@@ -130,9 +127,7 @@ def get_packaging_records_from_store_packaging_report(
 
                             number_of_cartons=utils.to_number_of_cartons(activity.no_of_cartons,activity.batch_no,),
                             
-                            status=FlaggedValue(
-                                utils.to_valid_string(activity.status),
-                            ),
+                            status=utils.to_status(activity.status),
                             remarks=utils.to_remarks(
                                 activity.challenges,
                                 activity.action_taken_remarks,

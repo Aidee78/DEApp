@@ -59,6 +59,17 @@ class Converter:
         self.processing_report_name = "processing_reports"
         self.store_packaging_report_name = "store_packaging_reports"
 
+    def _clean_up_records(self, records: list) -> list:
+        deduplicated_records = remove_duplicates(records)
+
+        only_valid_records = remove_completely_empty_records(deduplicated_records)
+
+        # return only_valid_records
+    
+        consolidated_records = consolidate_records(only_valid_records)
+        
+        return consolidated_records
+
     def get_blending_records(self,) -> list[blending.BlendingRecord]:
         records: list[blending.BlendingRecord] = []
         records.extend(
@@ -74,13 +85,7 @@ class Converter:
             ),
         )
         
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        
-        only_valid_records = remove_completely_empty_records(deduplicated_records)
-        return only_valid_records
+        return self._clean_up_records(records)
 
     def get_blistering_records(self,) -> list[blistering.BlisteringRecord]:
         records: list[blistering.BlisteringRecord] = []
@@ -91,14 +96,8 @@ class Converter:
                 self.ipqc_report_name
             ),
         )
-        
-        
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+                
+        return self._clean_up_records(records)
 
     def get_coating_records(self,) -> list[coating.CoatingRecord]:
         records: list[coating.CoatingRecord] = []
@@ -116,13 +115,7 @@ class Converter:
             ),
         )
         
-        
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+        return self._clean_up_records(records)
 
     def get_compression_records(self,) -> list[compression.CompressionRecord]:
         records: list[compression.CompressionRecord] = []
@@ -139,13 +132,7 @@ class Converter:
             ),
         )
         
-        
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+        return self._clean_up_records(records)
 
     def get_dispensing_records(self,) -> list[dispensing.DispensingRecord]:
         # requires both store_packaging reports and processing reports, for confirmation
@@ -165,13 +152,7 @@ class Converter:
             )
         )
 
-
-        deduplicated_records = remove_duplicates(records)
-
-        consolidated_records = consolidate_records(deduplicated_records)
-
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+        return self._clean_up_records(records)
         
 
     def get_filling_records(self,) -> list[filling.FillingRecord]:
@@ -184,13 +165,7 @@ class Converter:
             ),
         )
         
-        
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+        return self._clean_up_records(records)
 
     def get_granulation_records(self,) -> list[granulation.GranulationRecord]:
         records: list[granulation.GranulationRecord] = []
@@ -207,13 +182,7 @@ class Converter:
             ),
         )
 
-        
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+        return self._clean_up_records(records)
 
     def get_overprinting_records(self,) -> list[overprinting.OverprintingRecord]:
         records: list[overprinting.OverprintingRecord] = []
@@ -232,13 +201,7 @@ class Converter:
             ),
         )
         
-        
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+        return self._clean_up_records(records)
 
     def get_packaging_records(self,) -> list[packaging.PackagingRecord]:
         records: list[packaging.PackagingRecord] = []
@@ -257,13 +220,7 @@ class Converter:
             ),
         )
         
-        
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+        return self._clean_up_records(records)
 
     def get_sifting_records(self,) -> list[sifting.SiftingRecord]:
         records: list[sifting.SiftingRecord] = []
@@ -280,10 +237,4 @@ class Converter:
             ),
         )
 
-        
-        deduplicated_records = remove_duplicates(records)
-        
-        consolidated_records = consolidate_records(deduplicated_records)
-        
-        only_valid_records = remove_completely_empty_records(consolidated_records)
-        return only_valid_records
+        return self._clean_up_records(records)

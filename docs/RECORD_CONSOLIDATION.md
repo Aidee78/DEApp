@@ -57,7 +57,7 @@ Records with an incomplete activity key remain separate. A complete-key group is
 For each `FlaggedValue` field in a cross-report group:
 
 1. If at least one candidate is populated, choose the populated value from the candidate with the latest `received_at` and set the resulting flag to `3`. This applies even when the populated values agree.
-2. If every candidate value is `None`, keep the field from the latest record. If candidate flags differ, set the resulting flag to `3`; otherwise preserve the chosen field's flag.
+2. If both compared values are `None`, the resulting value is `None` and its flag is the larger of the two flags. This applies to ordinary fields, `officer`, and `remarks`.
 3. If multiple populated candidates tie at the latest `received_at`, keep the first candidate in input order and set the resulting flag to `3`.
 
 `officer` and `remarks` follow the same field-selection rules as other fields; their text is not joined across records.

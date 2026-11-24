@@ -1,7 +1,6 @@
 """Convert processing and IPQC report activities into compression records."""
 
 
-from deapp.models.excel.field import FlaggedValue
 from deapp.models.excel.compression import CompressionRecord
 from deapp.models.extracted_data import ProductionActivity, ReportExtractedData
 from deapp.services.excel import utils
@@ -60,9 +59,7 @@ def get_compression_records_from_processing_report(
 
                             quantity_tabs = powder_percent,
 
-                            status=FlaggedValue(
-                                utils.to_valid_string(activity.status),
-                            ),
+                            status=utils.to_status(activity.status),
                             remarks=utils.to_remarks(
                                 activity.challenges,
                                 activity.action_taken_remarks,
@@ -130,9 +127,7 @@ def get_compression_records_from_ipqc_report(
 
                             quantity_tabs = quantity_tabs,
 
-                            status=FlaggedValue(
-                                utils.to_valid_string(activity.status),
-                            ),
+                            status=utils.to_status(activity.status),
                             remarks=utils.to_remarks(
                                 activity.challenges,
                                 activity.action_taken_remarks,

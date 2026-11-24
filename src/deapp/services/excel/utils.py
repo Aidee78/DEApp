@@ -897,13 +897,22 @@ def to_remarks(
     challenges = to_valid_string(challenges)
     action_taken_remarks = to_valid_string(action_taken_remarks)
 
+
     if not challenges and (not action_taken_remarks):
         return FlaggedValue(None, 1)
 
+    if challenges:
+        return FlaggedValue(f"{challenges}.{action_taken_remarks}.", 0)
 
-    return FlaggedValue(f"{challenges}. || {action_taken_remarks}.", 0)
+    return FlaggedValue(f"{challenges}{action_taken_remarks}.", 0)
 
+def to_status(status: str | None) -> FlaggedValue[str | None]:
+    status = to_valid_string(status)
 
+    if status:
+        return FlaggedValue(status, 0)
+    else:
+        return FlaggedValue(None, 1)
 
 def contains_close_word(text: str, target: str, cutoff: float = 0.9) -> bool:
     words = re.findall(r"[a-z]+", text.casefold())

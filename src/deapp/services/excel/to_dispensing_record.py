@@ -1,6 +1,5 @@
 from deapp.models.excel.dispensing import DispensingRecord
 from deapp.models.extracted_data import ReportExtractedData
-from deapp.models.excel.field import FlaggedValue
 from deapp.services.excel import utils
 
 
@@ -62,11 +61,7 @@ def get_dispensing_records_from_processing_report(
                                 production_activity.end_time,
                                 shift,
                                 ),
-                                status=FlaggedValue(
-                                    utils.to_valid_string(
-                                        production_activity.status,
-                                    ),
-                                ),
+                                status=utils.to_status(production_activity.status),
                                 remarks=utils.to_remarks(production_activity.challenges,
                                 production_activity.action_taken_remarks),
 
@@ -134,11 +129,7 @@ def get_dispensing_records_from_store_packaging_report(
                                 production_activity.end_time,
                                 shift,
                                 ),
-                                status=FlaggedValue(
-                                    utils.to_valid_string(
-                                        production_activity.status,
-                                    ),
-                                ),
+                                status=utils.to_status(production_activity.status),
                                 remarks=utils.to_remarks(production_activity.challenges,
                                                          
                                 production_activity.action_taken_remarks),

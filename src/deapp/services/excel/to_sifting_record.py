@@ -1,6 +1,5 @@
 """Convert processing and IPQC report activities into sifting records."""
 
-from deapp.models.excel.field import FlaggedValue
 from deapp.models.excel.sifting import SiftingRecord
 from deapp.models.extracted_data import ReportExtractedData
 from deapp.services.excel import utils
@@ -52,9 +51,7 @@ def _get_sifting_records(
 
                         quantity_kg=utils.to_extract_kg_quantity(activity.no),
                         
-                        status=FlaggedValue(
-                            utils.to_valid_string(activity.status),
-                        ),
+                        status=utils.to_status(activity.status),
                         remarks=utils.to_remarks(
                             activity.challenges,
                             activity.action_taken_remarks,

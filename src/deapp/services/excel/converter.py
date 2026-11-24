@@ -70,16 +70,16 @@ class Converter:
         records.extend(
             to_blending_record.get_blending_records_from_ipqc_report(
                 self.ipqc_reports,
-                self.processing_report_name,
+                self.ipqc_report_name,
             ),
         )
-        
         
         deduplicated_records = remove_duplicates(records)
         
         consolidated_records = consolidate_records(deduplicated_records)
         
-        only_valid_records = remove_completely_empty_records(consolidated_records)
+        
+        only_valid_records = remove_completely_empty_records(deduplicated_records)
         return only_valid_records
 
     def get_blistering_records(self,) -> list[blistering.BlisteringRecord]:

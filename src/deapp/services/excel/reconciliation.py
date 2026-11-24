@@ -20,7 +20,7 @@ INCONSISTENT_FLAG: FieldFlag = 3
 RecordT = TypeVar("RecordT")
 Candidate = tuple[FlaggedValue[Any], Any]
 
-_TIME_FIELDS = ("start_time", "end_time", "stop_time")
+_TIME_FIELDS = ("start_time", "end_time", "stop_time", "idle_time")
 _MEASURE_FIELDS = (
     "quantity_kg",
     "output",
@@ -30,6 +30,7 @@ _MEASURE_FIELDS = (
     "powder_percent",
     "number_of_cartons",
 )
+
 
 def remove_duplicates(records: Iterable[T]) -> list[T]:
     """Return distinct records in their original order."""
@@ -49,21 +50,19 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
 
     for record in records:
         if not is_dataclass(record) or isinstance(record, type):
-            raise RecordTypeError("Each record must be a dataclass instance.")
+            raise TypeError("Each record must be a dataclass instance.")
 
         key: list[Any] = [type(record)]
         has_complete_activity_key = True
 
-        for name in ("date", "shift", "batch_number"):
+        for name in _ACTIVITY_KEY_FIELDS:
             value = getattr(record, name, None)
             if not isinstance(value, FlaggedValue):
-                raise RecordTypeError(
-                    f"Record field {name!r} must be a FlaggedValue."
-                )
+                raise TypeError(f"Record field {name!r} must be a FlaggedValue.")
             if value.value is None:
                 has_complete_activity_key = False
             key.extend((value.value, value.flag))
-                
+
         if not has_complete_activity_key:
             # Keep incomplete-key records as individual, unchanged records.
             groups.append((False, [record]))
@@ -140,7 +139,7 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
             for record in group:
                 value = getattr(record, name)
                 if not isinstance(value, FlaggedValue):
-                    raise RecordTypeError(
+                    raise TypeError(
                         f"Record field {name!r} must be a FlaggedValue."
                     )
                 candidates.append((value, record))
@@ -152,11 +151,14 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
 
     return consolidated
 
-def _all_present_fields_are_empty_flagged_1(
+
+def _all_present_fields_are_empty(
     record: object,
     field_names: tuple[str, ...],
+    *,
+    require_flag_one: bool = True,
 ) -> bool:
-    """Return whether at least one listed field exists and all such fields are empty."""
+    """Return whether every present field meets the selected empty rule."""
     present_fields: list[FlaggedValue[object]] = []
 
     for name in field_names:
@@ -173,7 +175,7 @@ def _all_present_fields_are_empty_flagged_1(
 
     # An absent field group should not count as empty.
     return bool(present_fields) and all(
-        value.value is None and value.flag == 1
+        value.value is None and (not require_flag_one or value.flag == 1)
         for value in present_fields
     )
 
@@ -201,8 +203,12 @@ def remove_completely_empty_records(records: Iterable[RecordT]) -> list[RecordT]
         should_remove = (
             batch_number.value is None
             and batch_number.flag == 1
-            and _all_present_fields_are_empty_flagged_1(record, _TIME_FIELDS)
-            and _all_present_fields_are_empty_flagged_1(record, _MEASURE_FIELDS)
+            and _all_present_fields_are_empty(
+                record,
+                _TIME_FIELDS,
+                require_flag_one=False,
+            )
+            and _all_present_fields_are_empty(record, _MEASURE_FIELDS)
         )
 
         if not should_remove:

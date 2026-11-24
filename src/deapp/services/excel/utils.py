@@ -3,6 +3,8 @@ import re
 from collections.abc import Sequence, Mapping
 from difflib import SequenceMatcher
 from fractions import Fraction
+from typing import TypeVar
+from zoneinfo import ZoneInfo
 
 from deapp.application.exceptions import DataValidationError
 from deapp.models.excel.field import FlaggedValue
@@ -14,6 +16,13 @@ PRODUCTION_LINES = [
     "Capsule",
     "Tablet"
 ]
+
+_LAGOS_TIMEZONE = ZoneInfo("Africa/Lagos")
+_DAY_SHIFT_WINDOW_START = time(16, 0)
+_DAY_SHIFT_WINDOW_END = time(22, 0)
+_NIGHT_SHIFT_WINDOW_START = time(4, 0)
+_NIGHT_SHIFT_WINDOW_END = time(10, 0)
+_T = TypeVar("_T")
 
 PRODUCTS = { 
     "05" : "ASTAMENTIN 60ML",
@@ -497,8 +506,17 @@ def to_datetime(value: str | None) -> FlaggedValue:
         return FlaggedValue(None, 2)
 
 
-def to_shift(value: str | None) -> FlaggedValue:
-    """Return 'Day' or 'Night' when exactly one shift is mentioned."""
+def to_shift(
+    value: str | None,
+    received_at: datetime | None = None,
+) -> FlaggedValue[str | None]:
+    """Resolve a clear report shift against the receipt-time shift window.
+
+    An aware receipt timestamp inside the opposite shift's Lagos window
+    overrides the report text and marks the shift as conflicting. Ambiguous
+    report text, naive timestamps, and timestamps outside both windows retain
+    the result derived from the report text.
+    """
     if value is None:
         # The value was not a string, it is not even parseable
         return FlaggedValue("Day", 3)
@@ -510,11 +528,44 @@ def to_shift(value: str | None) -> FlaggedValue:
     shifts = set(re.findall(r"\b(day|night)\b", value.casefold()))
 
     if shifts == {"day"}:
-        return FlaggedValue("Day", 0)
-    if shifts == {"night"}:
-        return FlaggedValue("Night", 0)
-    
-    return FlaggedValue(None, 2)
+        report_shift = FlaggedValue("Day", 0)
+    elif shifts == {"night"}:
+        report_shift = FlaggedValue("Night", 0)
+    else:
+        return FlaggedValue(None, 2)
+
+    if (
+        received_at is None
+        or received_at.tzinfo is None
+        or received_at.utcoffset() is None
+    ):
+        return report_shift
+
+    local_received_time = received_at.astimezone(_LAGOS_TIMEZONE).time()
+    if _DAY_SHIFT_WINDOW_START <= local_received_time <= _DAY_SHIFT_WINDOW_END:
+        received_shift = "Day"
+    elif (
+        _NIGHT_SHIFT_WINDOW_START
+        <= local_received_time
+        <= _NIGHT_SHIFT_WINDOW_END
+    ):
+        received_shift = "Night"
+    else:
+        return report_shift
+
+    if received_shift == report_shift.value:
+        return report_shift
+    return FlaggedValue(received_shift, 3)
+
+
+def _inherit_shift_conflict(
+    value: FlaggedValue[_T],
+    shift: FlaggedValue[str | None] | None,
+) -> FlaggedValue[_T]:
+    """Carry a shift conflict onto a time field without changing its value."""
+    if shift is not None and shift.flag == 3:
+        return FlaggedValue(value.value, 3)
+    return value
 
 def to_production_line(
     value: str | None,
@@ -830,9 +881,12 @@ def _extract_single_time(
 
 def extract_time(
     value: str | None,
-    shift: str | None,
+    shift: FlaggedValue[str | None] | str | None,
 ) -> FlaggedValue:
     """Extract one time and resolve AM/PM ambiguity using the shift."""
+    if isinstance(shift, FlaggedValue):
+        parsed_time = _extract_single_time(value, shift.value)
+        return _inherit_shift_conflict(parsed_time, shift)
     return _extract_single_time(value, shift)
 
 def to_remarks(
@@ -858,7 +912,7 @@ def contains_close_word(text: str, target: str, cutoff: float = 0.9) -> bool:
         for word in words
     )
 
-def to_idle_duration(value: str | None) -> FlaggedValue[time | None]:
+def _parse_idle_duration(value: str | None) -> FlaggedValue[time | None]:
     """Parse an elapsed HH:MM[:SS] duration without applying shift offsets."""
     if value is None:
         return FlaggedValue(None, 1)
@@ -884,6 +938,14 @@ def to_idle_duration(value: str | None) -> FlaggedValue[time | None]:
         return FlaggedValue(None, 2)
 
     return FlaggedValue(time(hours, minutes, seconds), 0)
+
+
+def to_idle_duration(
+    value: str | None,
+    shift: FlaggedValue[str | None] | None = None,
+) -> FlaggedValue[time | None]:
+    """Parse an idle duration and inherit a shift conflict when present."""
+    return _inherit_shift_conflict(_parse_idle_duration(value), shift)
 
 def to_drums_kg_and_blisters(
     value: str | None,

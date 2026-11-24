@@ -1,40 +1,9 @@
 """Convert processing and IPQC report activities into sifting records."""
 
-from datetime import time
-import re
-
 from deapp.models.excel.field import FlaggedValue
 from deapp.models.excel.sifting import SiftingRecord
 from deapp.models.extracted_data import ReportExtractedData
 from deapp.services.excel import utils
-
-
-def _to_idle_duration(value: str | None) -> FlaggedValue[time | None]:
-    """Parse an elapsed HH:MM[:SS] duration without applying shift offsets."""
-    if value is None:
-        return FlaggedValue(None, 1)
-    if not isinstance(value, str):
-        return FlaggedValue(None, 2)
-
-    normalized = re.sub(r"\s+", "", value)
-    if not normalized or re.fullmatch(r"[-=]+", normalized):
-        return FlaggedValue(None, 1)
-
-    match = re.fullmatch(
-        r"(?P<hours>\d{1,2}):(?P<minutes>\d{1,2})"
-        r"(?::(?P<seconds>\d{1,2}))?",
-        normalized,
-    )
-    if match is None:
-        return FlaggedValue(None, 2)
-
-    hours = int(match.group("hours"))
-    minutes = int(match.group("minutes"))
-    seconds = int(match.group("seconds") or 0)
-    if hours > 23 or minutes > 59 or seconds > 59:
-        return FlaggedValue(None, 2)
-
-    return FlaggedValue(time(hours, minutes, seconds), 0)
 
 
 def _get_sifting_records(
@@ -45,7 +14,7 @@ def _get_sifting_records(
     records: list[SiftingRecord] = []
 
     for report in reports:
-        shift = utils.to_shift(report.shift)
+        shift = utils.to_shift(report.shift, report.received_at)
         for extracted_data in report.data or []:
             for activity in extracted_data.activities:
                 if (
@@ -70,13 +39,16 @@ def _get_sifting_records(
                         ),
                         start_time=utils.extract_time(
                             activity.start_time,
-                            shift.value,
+                            shift,
                         ),
                         stop_time=utils.extract_time(
                             activity.end_time,
-                            shift.value,
+                            shift,
                         ),
-                        idle_time=_to_idle_duration(activity.idle_time),
+                        idle_time=utils.to_idle_duration(
+                            activity.idle_time,
+                            shift,
+                        ),
 
                         quantity_kg=utils.to_extract_kg_quantity(activity.no),
                         

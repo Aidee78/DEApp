@@ -16,7 +16,7 @@ def get_overprinting_records_from_packaging_report(
     
     for report in overprinting_reports:
         if report.data:
-            shift = utils.to_shift(report.shift)
+            shift = utils.to_shift(report.shift, report.received_at)
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     
@@ -47,13 +47,16 @@ def get_overprinting_records_from_packaging_report(
                             ),
                             start_time=utils.extract_time(
                                 activity.start_time,
-                                shift.value,
+                                shift,
                             ),
                             stop_time=utils.extract_time(
                                 activity.end_time,
-                                shift.value,
+                                shift,
                             ),
-                            idle_time=utils.to_idle_duration(activity.idle_time),
+                            idle_time=utils.to_idle_duration(
+                                activity.idle_time,
+                                shift,
+                            ),
 
                             number_of_cartons=cartons,
                             
@@ -88,7 +91,7 @@ def get_overprinting_records_from_store_packaging_report(
     
     for report in store_overprinting_reports:
         if report.data:
-            shift = utils.to_shift(report.shift)
+            shift = utils.to_shift(report.shift, report.received_at)
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     
@@ -119,13 +122,16 @@ def get_overprinting_records_from_store_packaging_report(
                             ),
                             start_time=utils.extract_time(
                                 activity.start_time,
-                                shift.value,
+                                shift,
                             ),
                             stop_time=utils.extract_time(
                                 activity.end_time,
-                                shift.value,
+                                shift,
                             ),
-                            idle_time=utils.to_idle_duration(activity.idle_time),
+                            idle_time=utils.to_idle_duration(
+                                activity.idle_time,
+                                shift,
+                            ),
 
                             number_of_cartons=cartons,
 

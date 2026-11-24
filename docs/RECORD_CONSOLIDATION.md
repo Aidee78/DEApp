@@ -13,9 +13,9 @@ Each extracted value has a value and a status flag:
 | `2` | The value was not parseable. |
 | `3` | Multiple sources of truth conflicted for that value. |
 
-These flags describe status; their numeric values do not by themselves define which candidate wins during consolidation. In particular, the precedence of flags `1` and `2` when consolidating candidates is still unresolved.
+These flags describe status. For a non-empty field in a consolidated group, the selected value receives flag `3`, even if the populated values agree. If every candidate is empty, the latest candidate's flag is retained unless the candidate flags differ, in which case the result receives flag `3`.
 
-**Implementation status:** `src/deapp/models/excel/field.py` currently permits only flags `0` and `3`. Support for flags `1` and `2`, and consistent status assignment during conversion, is still required before this full flag contract is implemented.
+**Implementation status:** `src/deapp/models/excel/field.py` accepts all four flags. Consistent status assignment during conversion still needs to be verified across record types.
 
 ## Parser field preservation and collisions
 
@@ -44,31 +44,33 @@ This filter concerns extracted records only. It does not establish workbook dupl
 
 ## Matching records
 
-Records can be consolidated only within the same dataclass class and when all three activity-key values are present and match, including their flags:
+Records can be consolidated only within the same dataclass class and when all three activity-key fields are present and match in both value and flag:
 
 - `date`
 - `shift`
 - `batch_number`
 
-Records with an incomplete activity key remain separate. A complete-key group is consolidated only when it contains at least two distinct `report_type` values. Records with only one `report_type` remain separate. When a cross-report group is consolidated, the resulting record's `report_type` is set to `None` because it represents more than one source.
+Records with an incomplete activity key remain separate. A complete-key group is consolidated only when it contains at least two distinct `report_type` values. Records with only one `report_type` remain separate. When a group is consolidated, the resulting `report_type` is set to `None` because it represents more than one source.
 
 ## Choosing field values
 
 For each `FlaggedValue` field in a cross-report group:
 
-1. If at least one candidate value is not `None`, choose the populated value from the candidate with the latest `received_at` and set the resulting flag to `3`. This also applies when other candidates are `None` or when populated values are equal.
-2. If different populated values tie at the latest `received_at`, keep the first candidate and set the resulting flag to `3`.
-3. If all candidate values are `None`, use the field from the latest record; differing input flags produce flag `3`.
+1. If at least one candidate is populated, choose the populated value from the candidate with the latest `received_at` and set the resulting flag to `3`. This applies even when the populated values agree.
+2. If every candidate value is `None`, keep the field from the latest record. If candidate flags differ, set the resulting flag to `3`; otherwise preserve the chosen field's flag.
+3. If multiple populated candidates tie at the latest `received_at`, keep the first candidate in input order and set the resulting flag to `3`.
+
+`officer` and `remarks` follow the same field-selection rules as other fields; their text is not joined across records.
 
 The consolidated record's `received_at` is the latest `received_at` among all records in its group.
 
 ## Officer names
 
-The `officer` field follows the same latest-value rule as other `FlaggedValue` fields. A cross-report consolidation keeps the latest populated officer value and sets its flag to `3`; it does not combine names from separate records.
+Officer names are not combined. A consolidated record keeps the populated officer value selected by the latest-`received_at` rule and receives flag `3`.
 
 ## Current implementation and verification status
 
-`consolidate_records()` is in `src/deapp/services/excel/reconciliation.py`. The dispensing converter calls it, and the working tree includes a post-consolidation empty-record filter. The other converter record getters are not implemented yet, so this does not establish that every record type is integrated.
+`consolidate_records()` is in `src/deapp/services/excel/reconciliation.py`. Converter getters call it as part of record processing. The working tree also includes a post-consolidation empty-record filter.
 
 The dispensing converter currently calls `remove_duplicates()` before consolidation. `FlaggedValue` equality ignores flags, so that preliminary filter can remove otherwise equal records whose flags differ, including key-field flags. The conversion path needs verification to ensure the approved key distinctions survive that filter.
 

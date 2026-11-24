@@ -21,7 +21,10 @@ def get_dispensing_records_from_processing_report(
                         production_activity.stage is not None
                         and "dispensing" in production_activity.stage.lower()
                     ):
-                        shift = utils.to_shift(processing_report.shift)
+                        shift = utils.to_shift(
+                            processing_report.shift,
+                            processing_report.received_at,
+                        )
                         records.append(
                             DispensingRecord(
                                 date=utils.to_datetime(processing_report.report_date),
@@ -53,11 +56,11 @@ def get_dispensing_records_from_processing_report(
 
                                 start_time=utils.extract_time(
                                 production_activity.start_time,
-                                shift.value,
+                                shift,
                                 ),
                                 stop_time=utils.extract_time(
                                 production_activity.end_time,
-                                shift.value,
+                                shift,
                                 ),
                                 status=FlaggedValue(
                                     utils.to_valid_string(
@@ -90,7 +93,10 @@ def get_dispensing_records_from_store_packaging_report(
                         production_activity.stage is not None
                         and "dispensing" in production_activity.stage.lower()
                     ):
-                        shift = utils.to_shift(store_packaging_report.shift)
+                        shift = utils.to_shift(
+                            store_packaging_report.shift,
+                            store_packaging_report.received_at,
+                        )
                         records.append(
                             DispensingRecord(
                                 date=utils.to_datetime(store_packaging_report.report_date),
@@ -122,11 +128,11 @@ def get_dispensing_records_from_store_packaging_report(
                                 
                                 start_time=utils.extract_time(
                                 production_activity.start_time,
-                                shift.value,
+                                shift,
                                 ),
                                 stop_time=utils.extract_time(
                                 production_activity.end_time,
-                                shift.value,
+                                shift,
                                 ),
                                 status=FlaggedValue(
                                     utils.to_valid_string(

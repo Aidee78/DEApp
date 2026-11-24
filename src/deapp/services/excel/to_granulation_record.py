@@ -14,7 +14,7 @@ def get_granulation_records_from_processing_report(
     
     for report in processing_reports:
         if report.data:
-            shift = utils.to_shift(report.shift)
+            shift = utils.to_shift(report.shift, report.received_at)
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     if (
@@ -44,13 +44,16 @@ def get_granulation_records_from_processing_report(
                             ),
                             start_time=utils.extract_time(
                                 activity.start_time,
-                                shift.value,
+                                shift,
                             ),
                             stop_time=utils.extract_time(
                                 activity.end_time,
-                                shift.value,
+                                shift,
                             ),
-                            idle_time=utils.to_idle_duration(activity.idle_time),
+                            idle_time=utils.to_idle_duration(
+                                activity.idle_time,
+                                shift,
+                            ),
 
                             coarse_percent = coarse_percent,
 
@@ -81,7 +84,7 @@ def get_granulation_records_from_ipqc_report(
     
     for report in ipqc_reports:
         if report.data:
-            shift = utils.to_shift(report.shift)
+            shift = utils.to_shift(report.shift, report.received_at)
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     if (
@@ -112,13 +115,16 @@ def get_granulation_records_from_ipqc_report(
                             ),
                             start_time=utils.extract_time(
                                 activity.start_time,
-                                shift.value,
+                                shift,
                             ),
                             stop_time=utils.extract_time(
                                 activity.end_time,
-                                shift.value,
+                                shift,
                             ),
-                            idle_time=utils.to_idle_duration(activity.idle_time),
+                            idle_time=utils.to_idle_duration(
+                                activity.idle_time,
+                                shift,
+                            ),
 
                             coarse_percent = coarse_percent,
 

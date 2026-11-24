@@ -20,6 +20,7 @@ dependencies = [
     "beautifulsoup4",
     "lxml",
     "dateparser>=1.5.1",
+    "tzdata>=2024.1",
     "xlwings>=0.37.12",
 ]
 

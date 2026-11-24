@@ -17,6 +17,7 @@ from deapp.models.excel import (
     sifting,
 )
 from deapp.models.excel.field import FlaggedValue
+from deapp.services.excel_writer.serialization import to_excel_value
 
 
 logger = logging.getLogger(__name__)
@@ -171,6 +172,7 @@ class ExcelManager:
     def _write_cell(self, ws, col: str, row: int, field: FlaggedValue) -> None:
         """Write a value and apply formatting based on its flag."""
         value = field.value
+        value = to_excel_value(value)
         flag = field.flag
 
         cell = ws.range(f"{col}{row}")
@@ -214,14 +216,16 @@ class ExcelManager:
         TABLE_NAME = "Table7"
 
         try:
+            ws = self._get_worksheet(WORKSHEET_NAME)
             row = self._next_row(
-                ws = self._get_worksheet(WORKSHEET_NAME),
+                ws = ws,
                 table_name=TABLE_NAME,
                 columns= COLUMNS
             )
 
             for col, attr in COLUMNS:
-                self._write_cell(ws, col, row, getattr(blending_record, attr))
+                field = getattr(blending_record, attr)
+                self._write_cell(ws, col, row, field)
 
         except ExcelWriteError:
             raise

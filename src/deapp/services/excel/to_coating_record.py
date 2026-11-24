@@ -17,8 +17,6 @@ def get_coating_records_from_processing_report(
             shift = utils.to_shift(report.shift)
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
-                    print("zazu")
-                    print(activity)
                     if (
                         activity.stage is None
                         or "coating" not in activity.stage.casefold()
@@ -28,7 +26,6 @@ def get_coating_records_from_processing_report(
                     ):
                         continue
 
-                    print("zuzu")
                     quantity_kg, tabs = utils.to_quantity_kg_and_tabs(activity.no)
         
                     records.append(
@@ -87,8 +84,6 @@ def get_coating_records_from_ipqc_report(
             shift = utils.to_shift(report.shift)
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
-                    print("zazu")
-                    print(activity)
                     if (
                         activity.stage is None
                         or "coating" not in activity.stage.casefold()
@@ -98,7 +93,6 @@ def get_coating_records_from_ipqc_report(
                     ):
                         continue
 
-                    print("zuzu")
                     quantity_kg, quantity_tabs = utils.to_quantity_kg_and_tabs(activity.no)
         
                     records.append(

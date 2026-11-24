@@ -19,8 +19,6 @@ def get_blistering_records_from_ipqc_report(
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     
-                    print(activity)
-                    print('ffg')
                     if (
                         activity.stage is None
                         or "blistering" not in activity.stage.casefold()
@@ -30,7 +28,6 @@ def get_blistering_records_from_ipqc_report(
                     ):
                         continue
 
-                    print("zuzu")
                     drums, quantity_kg, blisters = utils.to_drums_kg_and_blisters(activity.no, activity.mc_no)
         
                     records.append(

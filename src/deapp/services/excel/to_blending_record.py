@@ -14,8 +14,6 @@ def get_blending_records_from_processing_report(processing_reports: list[ReportE
             shift = utils.to_shift(report.shift)
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
-                    print("zazu")
-                    print(activity)
                     if (
                         activity.stage is None
                         or "blending" not in activity.stage.casefold()
@@ -25,7 +23,6 @@ def get_blending_records_from_processing_report(processing_reports: list[ReportE
                     ):
                         continue
                             
-                    print("zuzu")
                     quantity_kg, drums = utils.to_quantity_kg_and_drums(activity.no)
         
                     records.append(
@@ -84,8 +81,6 @@ def get_blending_records_from_ipqc_report(
             shift = utils.to_shift(report.shift)
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
-                    print("zazu")
-                    print(activity)
                     if (
                         activity.stage is None
                         or "blending" not in activity.stage.casefold()
@@ -95,7 +90,6 @@ def get_blending_records_from_ipqc_report(
                     ):
                         continue
     
-                    print("zuzu")
                     quantity_kg, drums = utils.to_quantity_kg_and_drums(activity.no)
     
                     records.append(

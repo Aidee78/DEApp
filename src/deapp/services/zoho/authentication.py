@@ -8,14 +8,11 @@ from typing import Protocol
 
 import requests
 
+from deapp.application.exceptions import InputError, ZohoAuthenticationError
 from deapp.config.secret_store import remove_secret, save_secret
 
 
 logger = logging.getLogger(__name__)
-
-
-class ZohoAuthenticationError(RuntimeError):
-    """Raised when Zoho cannot provide usable OAuth tokens."""
 
 
 class TokenResponse(Protocol):
@@ -64,7 +61,7 @@ class ZohoAuthenticator:
         expiry_buffer_seconds: int = 300,
     ) -> None:
         if expiry_buffer_seconds < 0:
-            raise ValueError("expiry_buffer_seconds cannot be negative.")
+            raise InputError("expiry_buffer_seconds cannot be negative.")
 
         self._settings = settings
         self._session = session or requests.Session()
@@ -100,8 +97,8 @@ class ZohoAuthenticator:
 
     def exchange_authorization_code(self, code: str) -> ZohoTokenSet:
         """Exchange a one-time code, save its refresh token, and clear the code."""
-        if not code.strip():
-            raise ValueError("Authorization code must not be empty.")
+        if not isinstance(code, str) or not code.strip():
+            raise InputError("Authorization code must not be empty.")
 
         payload = {
             "code": code.strip(),

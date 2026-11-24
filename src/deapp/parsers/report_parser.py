@@ -1,5 +1,6 @@
 """Parsing helpers for the IPQC daily report."""
 
+import logging
 from datetime import datetime
 
 from deapp.models.extracted_data import ProductionActivity, ReportExtractedData, ExtractedData
@@ -11,6 +12,9 @@ from deapp.parsers.utils import (
     record_to_production_activity,
     get_line_and_personnel,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 FIELD_BY_HEADER = {
@@ -48,14 +52,13 @@ def parse_production_activities(
 
     extracted_production_data: list[ExtractedData] = []
 
-    for table in extract_html_tables(mail_content):
+    tables = extract_html_tables(mail_content)
+    for table in tables:
         activities: list[ProductionActivity] = []
 
         line, personnel = get_line_and_personnel(table)
-        print(subject)
         matrix = normalize_report_table(table)
         records = matrix_to_records(matrix)
-        print(records)
         activities.extend(
             record_to_production_activity(record, FIELD_BY_HEADER)
             for record in records
@@ -75,11 +78,7 @@ def parse_production_activities(
         received_at=received_at,
     )
 
-    print()
-    print(subject)
-    print(report_date, shift)
-    print()
-
+    logger.debug("Parsed %d HTML table(s) from a report email.", len(tables))
 
     return ReportExtractedData(
         date_received=received_at.date().isoformat() if received_at else None,

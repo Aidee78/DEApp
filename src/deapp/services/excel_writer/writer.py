@@ -1,6 +1,9 @@
 from pathlib import Path
+import logging
+from types import TracebackType
 
 import xlwings as xw
+from deapp.application.exceptions import ExcelWriteError
 from deapp.models.excel import (
     blending,
     blistering,
@@ -14,6 +17,9 @@ from deapp.models.excel import (
     sifting,
 )
 from deapp.models.excel.field import FlaggedValue
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExcelManager:
@@ -30,6 +36,9 @@ class ExcelManager:
         self.wb_path = Path(wb_path).resolve()
         self.excel_app = None
         self._closed = False
+        self._owns_excel_app = False
+        self._owns_workbook = False
+        self._save = True
 
         # Save and close matching workbooks already open in Excel.
         for app in list(xw.apps):
@@ -40,29 +49,53 @@ class ExcelManager:
                     workbook.save()
                     workbook.close()
 
-        # Open the workbook in an Excel instance owned by this manager.
+        # Reuse the matching Excel instance or create a hidden instance.
         try:
-            self.excel_app = self.excel_app or xw.App(visible=False, add_book=False)
+            if self.excel_app is None:
+                self.excel_app = xw.App(visible=False, add_book=False)
+                self._owns_excel_app = True
             self.workbook = self.excel_app.books.open(str(self.wb_path))
-    
-        except Exception as exc:
-            if self.excel_app is not None:
+            self._owns_workbook = True
+
+        except Exception as error:
+            if self._owns_excel_app and self.excel_app is not None:
                 try:
                     self.excel_app.quit()
-                except Exception:
-                    pass
-            
-    # Context manager
+                except Exception as cleanup_error:
+                    logger.error(
+                        "Excel cleanup after an open failure also failed (%s).",
+                        type(cleanup_error).__name__,
+                    )
+            raise ExcelWriteError("Could not open the local workbook.") from error
+
     def __enter__(self) -> ExcelManager:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool:
         try:
-            self.close_workbook(save=self.save_progress and exc_type is None):
-        except Exception as exc:
-            pass
+            self.close_workbook(save=self.save_progress and exc_type is None)
+        except Exception as cleanup_error:
+            if exc is None:
+                raise ExcelWriteError(
+                    "Could not close the local workbook cleanly."
+                ) from cleanup_error
 
-        return False # Don't swallow the exception
+            logger.error(
+                "Workbook cleanup failed while handling %s (%s).",
+                exc_type.__name__ if exc_type is not None else "an error",
+                type(cleanup_error).__name__,
+            )
+            exc.add_note(
+                "Workbook cleanup also failed "
+                f"({type(cleanup_error).__name__})."
+            )
+
+        return False
 
     @property
     def save_progress(self) -> bool:
@@ -76,18 +109,36 @@ class ExcelManager:
         if self._closed:
             return
 
+        errors: list[Exception] = []
         try:
             if save:
                 self.workbook.save()
-        finally:
-            try:
-                if self.workbook_is_mine:
-                    self.workbook.close()
+        except Exception as error:
+            errors.append(error)
 
-            finally:
-                if self.workbook_is_mine:
-                    self.excel_app.quit()
-                self._closed = True
+        try:
+            if self._owns_workbook:
+                self.workbook.close()
+        except Exception as error:
+            errors.append(error)
+
+        if self._owns_excel_app and self.excel_app is not None:
+            try:
+                self.excel_app.quit()
+            except Exception as error:
+                errors.append(error)
+
+        self._closed = True
+        if errors:
+            failure = ExcelWriteError(
+                "Could not save or close the local workbook cleanly."
+            )
+            for additional_error in errors[1:]:
+                failure.add_note(
+                    "An additional workbook cleanup step failed "
+                    f"({type(additional_error).__name__})."
+                )
+            raise failure from errors[0]
 
     def _add_table_row(self, ws, table_name) -> int:
         """Append a row to the table and return its worksheet row number."""
@@ -135,11 +186,13 @@ class ExcelManager:
             cell.api.Font.ColorIndex = self.XL_COLOR_INDEX_AUTOMATIC     # remove font color override
             cell.font.bold = False
 
-    def _get_worksheet(self, worksheet):
+    def _get_worksheet(self, worksheet: str) -> xw.Sheet:
         try:
             return self.workbook.sheets[worksheet]
-        except Exception as exc:
-            pass
+        except Exception as error:
+            raise ExcelWriteError(
+                f"Could not find worksheet {worksheet!r}."
+            ) from error
     
     def write_blending_record(self, blending_record: blending.BlendingRecord) -> None:
         COLUMNS = [
@@ -170,32 +223,36 @@ class ExcelManager:
             for col, attr in COLUMNS:
                 self._write_cell(ws, col, row, getattr(blending_record, attr))
 
-        except Exception as exc:
-            pass
+        except ExcelWriteError:
+            raise
+        except Exception as error:
+            raise ExcelWriteError(
+                "Could not write the blending record to the workbook."
+            ) from error
 
     def write_blistering_record(self, blistering_record: blistering.BlisteringRecord) -> None:
-        pass
+        raise ExcelWriteError("Blistering record writing is not implemented.")
 
     def write_coating_record(self, coating_record: coating.CoatingRecord) -> None:
-        pass
+        raise ExcelWriteError("Coating record writing is not implemented.")
 
     def write_compression_record(self, compression_record: compression.CompressionRecord) -> None:
-        pass
+        raise ExcelWriteError("Compression record writing is not implemented.")
 
     def write_dispensing_record(self, dispensing_record: dispensing.DispensingRecord) -> None:
-        pass
+        raise ExcelWriteError("Dispensing record writing is not implemented.")
 
     def write_filling_record(self, filling_record: filling.FillingRecord) -> None:
-        pass
+        raise ExcelWriteError("Filling record writing is not implemented.")
 
     def write_granulation_record(self, granulation_record: granulation.GranulationRecord) -> None:
-        pass
+        raise ExcelWriteError("Granulation record writing is not implemented.")
 
     def write_overprinting_record(self, overprinting_record: overprinting.OverprintingRecord) -> None:
-        pass
+        raise ExcelWriteError("Overprinting record writing is not implemented.")
 
     def write_packaging_record(self, packaging_record: packaging.PackagingRecord) -> None:
-        pass
+        raise ExcelWriteError("Packaging record writing is not implemented.")
 
     def write_sifting_record(self, sifting_record: sifting.SiftingRecord) -> None:
-        pass
+        raise ExcelWriteError("Sifting record writing is not implemented.")

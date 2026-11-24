@@ -550,14 +550,15 @@ Harden the working application for reliable manual and unattended execution.
 
 #### 7.1. Implement structured logging
 
-- [ ] Centralize logging configuration.
-- [ ] Configure file logging and development console logging.
-- [ ] Define log levels, formats, timestamps, and useful workflow context.
-- [ ] Log application startup, shutdown, and major workflow stages.
-- [ ] Capture exceptions with useful context.
-- [ ] Prevent credentials, tokens, and unnecessary sensitive email content from appearing in logs.
-- [ ] Define log rotation and retention.
-- [ ] Test logging for successful and failed runs.
+- [x] Centralize logging configuration.
+- [x] Configure rotating file logging and console logging.
+- [x] Define log levels, timestamps, and consistent log fields.
+- [x] Log application startup and shutdown. Major workflow-stage logging remains pending until the full workflow exists.
+- [x] Report expected application errors and unexpected error types and source locations.
+- [x] Avoid logging credentials, tokens, and email contents.
+- [x] Rotate the log at 2 MB (2 × 1024 × 1024 bytes) and retain five backups.
+- [x] Test logging setup, rotation settings, and safe unexpected-error reporting.
+- [ ] Test logs across successful and failed full application runs.
 
 #### 7.2. Implement application locking
 
@@ -570,10 +571,10 @@ Harden the working application for reliable manual and unattended execution.
 
 #### 7.3. Standardize error handling and exit codes
 
-- [ ] Define the application exception hierarchy.
+- [x] Define the application exception hierarchy with `ApplicationError` as its root.
 - [ ] Define consistent exit codes.
-- [ ] Provide actionable user-facing error messages.
-- [ ] Ensure exceptions are logged without leaking secrets.
+- [x] Provide actionable messages for implemented application errors.
+- [x] Ensure top-level exception reporting avoids logging arbitrary exception text.
 - [ ] Test failure handling at each major workflow stage.
 - [ ] Verify that failure paths do not upload invalid workbooks or advance successful state.
 
@@ -778,14 +779,13 @@ The extracted activity-record consolidation rules are approved and documented in
 10. Date-range inclusivity and interpretation of the last successful execution date.
 11. Behavior after a failed or interrupted run.
 12. Secure production credential and token-storage approach.
-13. Logging retention requirements.
-14. GUI closure and cancellation behavior, beyond the invariant that cancellation must not upload an invalid workbook.
-15. Exact Task Scheduler settings and production execution account.
-16. Target Windows and Microsoft Excel environment.
-17. Resolution for conflicting field values tied on both flag and `received_at` (the current consolidator selects the first candidate and marks flag `3`, making the result input-order-dependent).
-18. Precedence for flags `1` and `2` when choosing among consolidated candidates; the four flag definitions do not define a ranking.
-19. Handling when multiple header aliases map to one field and one value is empty while another is nonempty.
-20. Interpretation and destination of mixed-unit measurements such as `2 CARTONS 34 BUNDLES`, including whether bundle counts need their own field.
+13. GUI closure and cancellation behavior, beyond the invariant that cancellation must not upload an invalid workbook.
+14. Exact Task Scheduler settings and production execution account.
+15. Target Windows and Microsoft Excel environment.
+16. Resolution for conflicting field values tied on both flag and `received_at` (the current consolidator selects the first candidate and marks flag `3`, making the result input-order-dependent).
+17. Precedence for flags `1` and `2` when choosing among consolidated candidates; the four flag definitions do not define a ranking.
+18. Handling when multiple header aliases map to one field and one value is empty while another is nonempty.
+19. Interpretation and destination of mixed-unit measurements such as `2 CARTONS 34 BUNDLES`, including whether bundle counts need their own field.
 
 Resolve these decisions with explicit requirements or representative samples. Do not invent values or rules to make implementation appear complete.
 

@@ -19,8 +19,6 @@ def get_filling_records_from_ipqc_report(
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     
-                    print(activity)
-                    print('ffg')
                     if (
                         activity.stage is None
                         or "filling" not in activity.stage.casefold()
@@ -30,7 +28,6 @@ def get_filling_records_from_ipqc_report(
                     ):
                         continue
 
-                    print("zuzu")
                     drums, quantity_kg, output = utils.to_drums_kg_and_capsules(activity.no)
         
                     records.append(

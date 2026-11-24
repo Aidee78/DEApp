@@ -4,6 +4,7 @@ from collections.abc import Sequence, Mapping
 from difflib import SequenceMatcher
 from fractions import Fraction
 
+from deapp.application.exceptions import DataValidationError
 from deapp.models.excel.field import FlaggedValue
 from deapp.models.extracted_data import ExtractedData, ProductionActivity
 
@@ -768,12 +769,12 @@ def _extract_single_time(
     
     if shift is None:
         return FlaggedValue(None, 2)
-        raise ValueError("Shift is required to resolve the time.")
+        raise DataValidationError("Shift is required to resolve the time.")
 
     shift_name = shift.strip().casefold()
     if shift_name not in {"day", "night"}:
         return FlaggedValue(None, 2)
-        raise ValueError("Shift must be 'Day' or 'Night'.")
+        raise DataValidationError("Shift must be 'Day' or 'Night'.")
 
     
 
@@ -791,7 +792,7 @@ def _extract_single_time(
 
     if len(matches) > 1:
         return FlaggedValue(None, 2)
-        raise ValueError(
+        raise DataValidationError(
             f"Expected one time, but found {len(matches)} in the input."
         )
     if not matches:

@@ -13,7 +13,6 @@ def get_overprinting_records_from_packaging_report(
     """Extract overprinting records from packaging reports."""
     records: list[OverprintingRecord] = []
 
-    print("hererer")
     
     for report in overprinting_reports:
         if report.data:
@@ -21,8 +20,6 @@ def get_overprinting_records_from_packaging_report(
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     
-                    print(activity)
-                    print('ffg')
                     if (
                         activity.stage is None
                         or "overprinting" not in activity.stage.casefold()
@@ -32,7 +29,6 @@ def get_overprinting_records_from_packaging_report(
                     ):
                         continue
 
-                    print("zuzu")
                     cartons, packs, bundles, pieces = utils.cartons_packs_bundles_pieces(activity.no, activity.mc_no)
         
                     records.append(
@@ -96,8 +92,6 @@ def get_overprinting_records_from_store_packaging_report(
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     
-                    print(activity)
-                    print('ffg')
                     if (
                         activity.stage is None
                         or "overprinting" not in activity.stage.casefold()
@@ -107,7 +101,6 @@ def get_overprinting_records_from_store_packaging_report(
                     ):
                         continue
 
-                    print("zuzu")
                     cartons, packs, bundles, pieces = utils.cartons_packs_bundles_pieces(activity.no, activity.mc_no)
         
                     records.append(

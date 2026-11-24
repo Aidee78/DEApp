@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Generic, Literal, TypeVar
 
+from deapp.application.exceptions import DataValidationError
+
 
 T = TypeVar("T")
 FieldFlag = Literal[0,1,2,3]
@@ -22,4 +24,4 @@ class FlaggedValue(Generic[T]):
     def __post_init__(self) -> None:
         """Reject flag codes outside the currently defined status values."""
         if self.flag not in (0,1,2,3):
-            raise ValueError("Field flag must be 0, 1, 2, or 3.")
+            raise DataValidationError("Field flag must be 0, 1, 2, or 3.")

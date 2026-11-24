@@ -6,9 +6,7 @@ from datetime import date
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-
-class StateError(Exception):
-    """Raised when the saved execution state cannot be read or written."""
+from deapp.application.exceptions import StateError
 
 
 def read_last_successful_date(state_file: Path) -> date | None:
@@ -63,8 +61,6 @@ def read_last_successful_date(state_file: Path) -> date | None:
 
 def write_last_successful_date(state_file: Path, successful_date: date) -> None:
     """Atomically save the date of the last successful processing run."""
-    state_file.parent.mkdir(parents=True, exist_ok=True)
-
     contents = json.dumps(
         {"last_successful_date": successful_date.isoformat()},
         indent=2,
@@ -77,6 +73,7 @@ def write_last_successful_date(state_file: Path, successful_date: date) -> None:
     # leaving malformed JSON.
 
     try:
+        state_file.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
@@ -95,13 +92,17 @@ def write_last_successful_date(state_file: Path, successful_date: date) -> None:
         temporary_file.replace(state_file)
 
     except OSError as error:
+        cleanup_error: OSError | None = None
         if temporary_file is not None:
             try:
                 temporary_file.unlink(missing_ok=True)
-            except OSError as cleanup_error:
-                raise StateError(
-                    f"Could not write state file or remove its temporary file: "
-                    f"{state_file}"
-                ) from cleanup_error
+            except OSError as caught_cleanup_error:
+                cleanup_error = caught_cleanup_error
 
-        raise StateError(f"Could not write state file: {state_file}") from error
+        state_error = StateError(f"Could not write state file: {state_file}")
+        if cleanup_error is not None:
+            state_error.add_note(
+                "Temporary-file cleanup also failed "
+                f"({type(cleanup_error).__name__})."
+            )
+        raise state_error from error

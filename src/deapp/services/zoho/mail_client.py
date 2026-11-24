@@ -8,6 +8,11 @@ from urllib.parse import quote
 
 import requests
 
+from deapp.application.exceptions import (
+    DateRangeError,
+    InputError,
+    ZohoMailError,
+)
 from deapp.services.zoho.authentication import (
     ZohoAuthenticationError,
     ZohoAuthenticator,
@@ -16,10 +21,6 @@ from deapp.services.zoho.models import ZohoMessage
 
 
 logger = logging.getLogger(__name__)
-
-
-class ZohoMailError(RuntimeError):
-    """Raised when a Zoho Mail API operation fails."""
 
 
 class ZohoMailClient:
@@ -36,11 +37,11 @@ class ZohoMailClient:
         retry_delay_seconds: float = 2.0,
     ) -> None:
         if timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be positive.")
+            raise InputError("timeout_seconds must be positive.")
         if max_attempts < 1:
-            raise ValueError("max_attempts must be at least 1.")
+            raise InputError("max_attempts must be at least 1.")
         if retry_delay_seconds < 0:
-            raise ValueError("retry_delay_seconds cannot be negative.")
+            raise InputError("retry_delay_seconds cannot be negative.")
 
         self._authenticator = authenticator
         self._api_base_url = api_base_url.rstrip("/")
@@ -107,9 +108,11 @@ class ZohoMailClient:
     ) -> list[dict[str, object]]:
         """Returns metadata for messages Zoho finds in the requested dates."""
         if end_date < start_date:
-            raise ValueError("end_date must not be earlier than start_date.")
+            raise DateRangeError(
+                "end_date must not be earlier than start_date."
+            )
         if not 1 <= page_size <= 200:
-            raise ValueError("page_size must be between 1 and 200.")
+            raise InputError("page_size must be between 1 and 200.")
 
         safe_account_id = quote(str(account_id), safe="")
         url = (

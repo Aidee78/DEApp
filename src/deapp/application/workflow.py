@@ -9,6 +9,7 @@ from datetime import date
 from pathlib import Path
 from typing import Protocol, TypeVar
 
+from deapp.application.exceptions import WorkflowError
 from deapp.models.email import Email
 from deapp.models.extracted_data import ExtractedData
 
@@ -121,11 +122,13 @@ def select_parser(
 ) -> Parser:
     """Choose the parser using finalized sender/subject/type identification rules."""
     # TODO: Implement only after the four email identification rules are settled.
-    raise NotImplementedError("Email type identification is not implemented")
+    raise WorkflowError("Email type identification is not implemented")
 
 
 def validate_extracted_records(records: list[ExtractedData]) -> None:
     """Validate extracted records before workbook modification."""
     # TODO: Implement confirmed required-field and duplicate rules.
     if not records:
-        raise ValueError("No records were extracted; handling policy is not defined")
+        raise WorkflowError(
+            "No records were extracted; handling policy is not defined."
+        )

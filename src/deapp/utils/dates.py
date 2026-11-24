@@ -2,18 +2,20 @@
 
 from datetime import date
 
+from deapp.application.exceptions import DateRangeError
+
 
 def parse_iso_date(value: str) -> date:
     """Parse a date in the exact YYYY-MM-DD format."""
     try:
         parsed_date = date.fromisoformat(value)
     except ValueError as error:
-        raise ValueError(
+        raise DateRangeError(
             f"invalid date {value!r}; expected YYYY-MM-DD"
         ) from error
 
     if parsed_date.isoformat() != value:
-        raise ValueError(
+        raise DateRangeError(
             f"invalid date {value!r}; expected YYYY-MM-DD"
         )
 
@@ -40,11 +42,13 @@ def resolve_date_range(
     )
 
     if resolved_start is None:
-        raise ValueError(
+        raise DateRangeError(
             "A start date is required when there is no last successful date."
         )
 
     if resolved_start > resolved_end:
-        raise ValueError("The start date must be on or before the end date.")
+        raise DateRangeError(
+            "The start date must be on or before the end date."
+        )
 
     return resolved_start, resolved_end

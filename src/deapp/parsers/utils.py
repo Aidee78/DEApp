@@ -8,6 +8,7 @@ from typing import Literal, cast
 from bs4 import BeautifulSoup, Comment, Tag
 from dateparser.search import search_dates
 
+from deapp.application.exceptions import ParsingError
 from deapp.models.extracted_data import ProductionActivity
 
 
@@ -219,7 +220,7 @@ def extract_html_tables(mail_content: str) -> list[Tag]:
     tables = soup.find_all("table")
 
     if not tables:
-        raise ValueError("The email did not contain any HTML tables.")
+        raise ParsingError("The email did not contain any HTML tables.")
 
     return tables
 
@@ -275,12 +276,12 @@ def normalize_report_table(table: Tag) -> list[list[str]]:
         try:
             span = int(raw_value)
         except (TypeError, ValueError) as error:
-            raise ValueError(
-                f"Invalid {attribute} value in HTML table: {raw_value!r}"
+            raise ParsingError(
+                f"Invalid {attribute} value in HTML table."
             ) from error
 
         if span < 1:
-            raise ValueError(
+            raise ParsingError(
                 f"HTML table {attribute} must be at least 1; got {span}."
             )
         return span
@@ -397,7 +398,6 @@ def matrix_to_records(
     if not matrix:
         return []
 
-    print(matrix)
     headers = [_remove_excess_whitespaces(header) for header in matrix[0]]
 
     return [

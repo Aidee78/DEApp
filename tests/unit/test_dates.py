@@ -4,6 +4,7 @@ from datetime import date
 
 import pytest
 
+from deapp.application.exceptions import DateRangeError
 from deapp.utils.dates import resolve_date_range, parse_iso_date
 
 
@@ -55,12 +56,12 @@ def test_explicit_start_date_allows_first_run_without_saved_date() -> None:
 
 
 def test_missing_start_and_last_successful_date_is_rejected() -> None:
-    with pytest.raises(ValueError, match="start date is required"):
+    with pytest.raises(DateRangeError, match="start date is required"):
         resolve_date_range(today=date(2026, 11, 2))
 
 
 def test_start_date_after_end_date_is_rejected() -> None:
-    with pytest.raises(ValueError, match="on or before"):
+    with pytest.raises(DateRangeError, match="on or before"):
         resolve_date_range(
             start_date=date(2026, 10, 20),
             end_date=date(2026, 10, 5),
@@ -69,7 +70,7 @@ def test_start_date_after_end_date_is_rejected() -> None:
 
 
 def test_start_date_after_today_is_rejected_when_end_date_defaults_to_today() -> None:
-    with pytest.raises(ValueError, match="on or before"):
+    with pytest.raises(DateRangeError, match="on or before"):
         resolve_date_range(
             start_date=date(2026, 11, 3),
             today=date(2026, 11, 2),
@@ -111,5 +112,5 @@ def test_parse_iso_date_accepts_valid_dates(
     ],
 )
 def test_parse_iso_date_rejects_invalid_dates(value: str) -> None:
-    with pytest.raises(ValueError, match="YYYY-MM-DD"):
+    with pytest.raises(DateRangeError, match="YYYY-MM-DD"):
         parse_iso_date(value)

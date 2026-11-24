@@ -13,7 +13,6 @@ def get_packaging_records_from_packaging_report(
     """Extract packaging records from packaging reports."""
     records: list[PackagingRecord] = []
 
-    print("hererer")
     
     for report in packaging_reports:
         if report.data:
@@ -21,8 +20,6 @@ def get_packaging_records_from_packaging_report(
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     
-                    print(activity)
-                    print('ffg')
                     if (
                         activity.stage is None
                         or "packaging" not in activity.stage.casefold()
@@ -32,7 +29,6 @@ def get_packaging_records_from_packaging_report(
                     ):
                         continue
 
-                    print("zuzu")
         
                     records.append(
                         PackagingRecord(
@@ -89,8 +85,6 @@ def get_packaging_records_from_store_packaging_report(
             for extracted_data in report.data:
                 for activity in extracted_data.activities:
                     
-                    print(activity)
-                    print('ffg')
                     if (
                         activity.stage is None
                         or (

@@ -3,10 +3,16 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+import logging
+import math
 import re
 
+from deapp.application.exceptions import SelectionError
 from deapp.services.zoho.mail_client import ZohoMailClient
 from deapp.services.zoho.models import ZohoMessage
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,10 +111,20 @@ def get_daily_messages_by_subject(
     """
     _validate_rules(accepted_subjects_by_type, fuzzy_signals_by_type)
 
-    if not 0.0 <= minimum_fuzzy_score <= 1.0:
-        raise ValueError("minimum_fuzzy_score must be between 0 and 1.")
-    if not 0.0 <= ambiguity_margin <= 1.0:
-        raise ValueError("ambiguity_margin must be between 0 and 1.")
+    if (
+        isinstance(minimum_fuzzy_score, bool)
+        or not isinstance(minimum_fuzzy_score, (int, float))
+        or not math.isfinite(minimum_fuzzy_score)
+        or not 0.0 <= minimum_fuzzy_score <= 1.0
+    ):
+        raise SelectionError("minimum_fuzzy_score must be between 0 and 1.")
+    if (
+        isinstance(ambiguity_margin, bool)
+        or not isinstance(ambiguity_margin, (int, float))
+        or not math.isfinite(ambiguity_margin)
+        or not 0.0 <= ambiguity_margin <= 1.0
+    ):
+        raise SelectionError("ambiguity_margin must be between 0 and 1.")
 
     metadata_rows = mail_client.search_messages(
         account_id=account_id,
@@ -116,7 +132,7 @@ def get_daily_messages_by_subject(
         end_date=processing_date,
     )
 
-    print(f"{len(metadata_rows)} messages found.")
+    logger.info("Zoho returned %d message records for selection.", len(metadata_rows))
 
     grouped: dict[str, list[ZohoMessage]] = {
         type_name: []
@@ -308,38 +324,42 @@ def _validate_rules(
 ) -> None:
     """Check that subject rules cover the same types and contain valid values."""
     if not accepted_subjects_by_type:
-        raise ValueError("At least one mail type must be configured.")
+        raise SelectionError("At least one mail type must be configured.")
 
     if set(accepted_subjects_by_type) != set(fuzzy_signals_by_type):
-        raise ValueError(
+        raise SelectionError(
             "Accepted subjects and fuzzy signals must define the same mail types."
         )
 
     for type_name, phrases in accepted_subjects_by_type.items():
-        if not type_name.strip():
-            raise ValueError("Mail type names must not be empty.")
+        if not isinstance(type_name, str) or not type_name.strip():
+            raise SelectionError("Mail type names must be non-empty strings.")
         if isinstance(phrases, str) or not phrases:
-            raise ValueError(
+            raise SelectionError(
                 f"Accepted subjects for {type_name!r} must be a non-empty sequence."
             )
         if any(not isinstance(phrase, str) or not phrase.strip()
                for phrase in phrases):
-            raise ValueError(
+            raise SelectionError(
                 f"Accepted subjects for {type_name!r} must be non-empty strings."
             )
 
     for type_name, signals in fuzzy_signals_by_type.items():
         if isinstance(signals, str) or not signals:
-            raise ValueError(
+            raise SelectionError(
                 f"Fuzzy signals for {type_name!r} must be a non-empty sequence."
             )
         if any(
             not isinstance(signal, FuzzySignal)
+            or not isinstance(signal.phrase, str)
             or not signal.phrase.strip()
+            or isinstance(signal.weight, bool)
+            or not isinstance(signal.weight, (int, float))
+            or not math.isfinite(signal.weight)
             or signal.weight <= 0
             for signal in signals
         ):
-            raise ValueError(
+            raise SelectionError(
                 f"Fuzzy signals for {type_name!r} must have a phrase "
                 "and a positive weight."
             )

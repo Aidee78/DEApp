@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from deapp.application.exceptions import DateRangeError
 from deapp.application.runner import prepare_execution
 from deapp.config import Settings
 from deapp.state.state_manager import (
@@ -77,7 +78,7 @@ def test_end_date_only_starts_at_saved_date(tmp_path: Path) -> None:
 def test_no_start_date_or_saved_date_is_an_error(tmp_path: Path) -> None:
     settings = make_settings(tmp_path / "missing-state.json")
 
-    with pytest.raises(ValueError, match="start date is required"):
+    with pytest.raises(DateRangeError, match="start date is required"):
         prepare_execution([], settings=settings, today=date(2026, 11, 2))
 
 

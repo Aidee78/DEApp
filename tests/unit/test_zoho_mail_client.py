@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from deapp.application.exceptions import DateRangeError
 from deapp.services.zoho.mail_client import (
     ZohoMailClient,
     ZohoMailError,
@@ -99,7 +100,7 @@ def test_get_message_retrieves_content_and_converts_received_time() -> None:
 def test_search_messages_rejects_invalid_date_range() -> None:
     client = make_client(Mock())
 
-    with pytest.raises(ValueError, match="end_date"):
+    with pytest.raises(DateRangeError, match="end_date"):
         client.search_messages(
             "account-1",
             date(2026, 11, 11),

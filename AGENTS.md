@@ -242,9 +242,8 @@ Windows-specific behavior.
 -   Include timestamps, useful workflow context, and exception details
     without exposing secrets or unnecessary email content.
 -   Configure console logging for development and file logging for
-    operational diagnosis.
--   Define log retention/rotation rather than allowing logs to grow
-    without limit.
+    operational diagnosis. Rotate the file at 2 MB (2 × 1024 × 1024
+    bytes) and retain five backups.
 -   Keep the Tkinter GUI focused on progress, status, and user-facing
     errors.
 -   The GUI must not own or duplicate business logic. Scheduled and
@@ -342,7 +341,6 @@ user, do not invent:
     transformed.
 -   Date-range inclusivity and last-successful-date semantics.
 -   Production secret-storage requirements.
--   Logging retention requirements.
 -   GUI cancellation behavior beyond the safety requirement that
     cancellation must not upload invalid work.
 -   Production scheduling and deployment settings beyond the stated

@@ -5,6 +5,10 @@ from dataclasses import fields, is_dataclass, replace
 from datetime import datetime
 from typing import Any, TypeVar, cast
 
+from deapp.application.exceptions import (
+    RecordTypeError,
+    ReconciliationError,
+)
 from deapp.models.excel.field import FieldFlag, FlaggedValue
 
 
@@ -27,10 +31,6 @@ _MEASURE_FIELDS = (
     "number_of_cartons",
 )
 
-class ReconciliationError(ValueError):
-    """Raised when conflicting values cannot be ordered safely."""
-
-
 def remove_duplicates(records: Iterable[T]) -> list[T]:
     """Return distinct records in their original order."""
     unique: list[T] = []
@@ -49,7 +49,7 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
 
     for record in records:
         if not is_dataclass(record) or isinstance(record, type):
-            raise TypeError("Each record must be a dataclass instance.")
+            raise RecordTypeError("Each record must be a dataclass instance.")
 
         key: list[Any] = [type(record)]
         has_complete_activity_key = True
@@ -57,7 +57,9 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
         for name in ("date", "shift", "batch_number"):
             value = getattr(record, name, None)
             if not isinstance(value, FlaggedValue):
-                raise TypeError(f"Record field {name!r} must be a FlaggedValue.")
+                raise RecordTypeError(
+                    f"Record field {name!r} must be a FlaggedValue."
+                )
             if value.value is None:
                 has_complete_activity_key = False
             key.extend((value.value, value.flag))
@@ -138,7 +140,9 @@ def consolidate_records(records: Iterable[RecordT]) -> list[RecordT]:
             for record in group:
                 value = getattr(record, name)
                 if not isinstance(value, FlaggedValue):
-                    raise TypeError(f"Record field {name!r} must be a FlaggedValue.")
+                    raise RecordTypeError(
+                        f"Record field {name!r} must be a FlaggedValue."
+                    )
                 candidates.append((value, record))
 
             updates[name] = choose_field(candidates)
@@ -161,7 +165,9 @@ def _all_present_fields_are_empty_flagged_1(
 
         value = getattr(record, name)
         if not isinstance(value, FlaggedValue):
-            raise TypeError(f"Record field {name!r} must be a FlaggedValue.")
+            raise RecordTypeError(
+                f"Record field {name!r} must be a FlaggedValue."
+            )
 
         present_fields.append(value)
 
@@ -178,15 +184,19 @@ def remove_completely_empty_records(records: Iterable[RecordT]) -> list[RecordT]
 
     for record in records:
         if not is_dataclass(record) or isinstance(record, type):
-            raise TypeError("Each record must be a dataclass instance.")
+            raise RecordTypeError("Each record must be a dataclass instance.")
 
         batch_number = getattr(record, "batch_number", None)
         if not isinstance(batch_number, FlaggedValue):
-            raise TypeError("Record field 'batch_number' must be a FlaggedValue.")
+            raise RecordTypeError(
+                "Record field 'batch_number' must be a FlaggedValue."
+            )
 
         received_at = getattr(record, "received_at", None)
         if not isinstance(received_at, datetime):
-            raise TypeError("Record field 'received_at' must be a datetime.")
+            raise RecordTypeError(
+                "Record field 'received_at' must be a datetime."
+            )
 
         should_remove = (
             batch_number.value is None

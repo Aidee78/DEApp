@@ -5,6 +5,7 @@ import os
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
+from deapp.application.exceptions import ConfigurationError
 from deapp.config.secret_store import load_environment
 from deapp.services.zoho.authentication import ZohoOAuthSettings
 
@@ -16,7 +17,12 @@ def _environment(
     if environ is not None:
         return environ
 
-    load_environment()
+    try:
+        load_environment()
+    except OSError as error:
+        raise ConfigurationError(
+            "Could not read the project environment file."
+        ) from error
     return os.environ
 
 
@@ -33,7 +39,7 @@ def load_secrets(
         if not source.get(name, "").strip()
     ]
     if missing:
-        raise ValueError(
+        raise ConfigurationError(
             f"Missing required environment variables: {', '.join(missing)}"
         )
 
@@ -60,7 +66,7 @@ def load_zoho_oauth_settings(
     )
 
     if refresh_token is None and authorization_code is None:
-        raise ValueError(
+        raise ConfigurationError(
             "Configure ZOHO_REFRESH_TOKEN or ZOHO_AUTH_CODE."
         )
 
@@ -73,12 +79,14 @@ def load_zoho_oauth_settings(
     try:
         timeout_seconds = float(source.get("ZOHO_TIMEOUT_SECONDS", "30"))
     except ValueError as exc:
-        raise ValueError("Invalid setting: ZOHO_TIMEOUT_SECONDS") from exc
+        raise ConfigurationError(
+            "Invalid setting: ZOHO_TIMEOUT_SECONDS"
+        ) from exc
 
     if not _is_https_url(accounts_server):
-        raise ValueError("Invalid setting: ZOHO_ACCOUNTS_SERVER")
+        raise ConfigurationError("Invalid setting: ZOHO_ACCOUNTS_SERVER")
     if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
-        raise ValueError("Invalid setting: ZOHO_TIMEOUT_SECONDS")
+        raise ConfigurationError("Invalid setting: ZOHO_TIMEOUT_SECONDS")
 
     return ZohoOAuthSettings(
         accounts_server=accounts_server.rstrip("/"),
@@ -102,7 +110,7 @@ def load_zoho_mail_api_base(
     ).strip()
 
     if not _is_https_url(api_base):
-        raise ValueError("Invalid setting: ZOHO_MAIL_API_BASE")
+        raise ConfigurationError("Invalid setting: ZOHO_MAIL_API_BASE")
 
     return api_base.rstrip("/")
 
@@ -118,5 +126,8 @@ def load_zoho_account_id(
 
 def _is_https_url(value: str) -> bool:
     """Check that a configured service URL has an HTTPS scheme and host."""
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
     return parsed.scheme == "https" and bool(parsed.netloc)

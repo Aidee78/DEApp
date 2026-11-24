@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 import tomllib
 
+from deapp.application.exceptions import ConfigurationError
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -23,7 +25,7 @@ def _require_non_empty_string(
     """Return a non-empty string setting or raise a named validation error."""
     value = section.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"Missing or invalid setting: {setting_name}")
+        raise ConfigurationError(f"Missing or invalid setting: {setting_name}")
     return value.strip()
 
 
@@ -46,17 +48,25 @@ def load_settings(config_path: Path | None = None) -> Settings:
         with config_path.open("rb") as config_file:
             raw: dict[str, object] = tomllib.load(config_file)
     except FileNotFoundError as error:
-        raise ValueError(f"Configuration file not found: {config_path}") from error
+        raise ConfigurationError(
+            f"Configuration file not found: {config_path}"
+        ) from error
     except tomllib.TOMLDecodeError as error:
-        raise ValueError(f"Configuration file is invalid TOML: {config_path}") from error
+        raise ConfigurationError(
+            f"Configuration file is invalid TOML: {config_path}"
+        ) from error
+    except OSError as error:
+        raise ConfigurationError(
+            f"Could not read configuration file: {config_path}"
+        ) from error
 
     application_value = raw.get("application")
     paths_value = raw.get("paths")
 
     if not isinstance(application_value, dict):
-        raise ValueError("Missing or invalid [application] section")
+        raise ConfigurationError("Missing or invalid [application] section")
     if not isinstance(paths_value, dict):
-        raise ValueError("Missing or invalid [paths] section")
+        raise ConfigurationError("Missing or invalid [paths] section")
 
     application: dict[str, object] = application_value
     paths: dict[str, object] = paths_value
@@ -70,7 +80,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
 
     allowed_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
     if log_level not in allowed_log_levels:
-        raise ValueError("Invalid setting: application.log_level")
+        raise ConfigurationError("Invalid setting: application.log_level")
 
     PROJECT_ROOT = config_path.parent.parent
 

@@ -2,6 +2,7 @@
 
 import pytest
 
+from deapp.application.exceptions import ConfigurationError
 from deapp.config.environment import load_secrets
 
 
@@ -22,7 +23,7 @@ def test_load_secrets_returns_requested_values() -> None:
 
 
 def test_load_secrets_reports_missing_names_without_values() -> None:
-    with pytest.raises(ValueError) as error:
+    with pytest.raises(ConfigurationError) as error:
         load_secrets(
             ("CLIENT_ID", "CLIENT_SECRET"),
             environ={"CLIENT_ID": "present"},
@@ -33,5 +34,5 @@ def test_load_secrets_reports_missing_names_without_values() -> None:
 
 
 def test_load_secrets_rejects_blank_values() -> None:
-    with pytest.raises(ValueError, match="CLIENT_ID"):
+    with pytest.raises(ConfigurationError, match="CLIENT_ID"):
         load_secrets(("CLIENT_ID",), environ={"CLIENT_ID": "   "})

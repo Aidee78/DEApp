@@ -122,6 +122,9 @@ class ExcelManager:
                 self.workbook.close()
         except Exception as error:
             errors.append(error)
+        finally:
+            # Release the Book COM proxy while its Excel app is still available.
+            self.workbook = None
 
         if self._owns_excel_app and self.excel_app is not None:
             try:
@@ -129,7 +132,11 @@ class ExcelManager:
             except Exception as error:
                 errors.append(error)
 
+        # The app proxy can be released after quit; the workbook proxy has
+        # already been released above.
+        self.excel_app = None
         self._closed = True
+
         if errors:
             failure = ExcelWriteError(
                 "Could not save or close the local workbook cleanly."
@@ -453,7 +460,7 @@ class ExcelManager:
             ("F", "start_time"),
             ("G", "stop_time"),
             ("H", "idle_time"),
-            ("J", "number_of_cartons"),
+            ("J", "quantity_kg"),
             ("K", "status"),
             ("L", "remarks"),
         ]

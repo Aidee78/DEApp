@@ -15,6 +15,8 @@ class Settings:
     log_level: str
     state_file: Path
     log_file: Path
+    dropbox_workbook_path: str | None = None
+    dropbox_test_workbook_path: str | None = None
 
 
 def _require_non_empty_string(
@@ -35,6 +37,28 @@ def _resolve_path(value: str, project_root: Path) -> Path:
     if path.is_absolute():
         return path
     return (project_root / path).resolve()
+
+
+def _optional_dropbox_path(
+    section: dict[str, object],
+    key: str,
+    setting_name: str,
+) -> str | None:
+    """Return a configured Dropbox file path without inventing a target."""
+    value = section.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ConfigurationError(f"Invalid setting: {setting_name}")
+
+    path = value.strip()
+    if not path:
+        return None
+    if not path.startswith("/") or path.endswith("/"):
+        raise ConfigurationError(
+            f"Invalid setting: {setting_name}; expected a Dropbox file path."
+        )
+    return path
 
 
 def load_settings(config_path: Path | None = None) -> Settings:
@@ -62,11 +86,14 @@ def load_settings(config_path: Path | None = None) -> Settings:
 
     application_value = raw.get("application")
     paths_value = raw.get("paths")
+    dropbox_value = raw.get("dropbox", {})
 
     if not isinstance(application_value, dict):
         raise ConfigurationError("Missing or invalid [application] section")
     if not isinstance(paths_value, dict):
         raise ConfigurationError("Missing or invalid [paths] section")
+    if not isinstance(dropbox_value, dict):
+        raise ConfigurationError("Invalid [dropbox] section")
 
     application: dict[str, object] = application_value
     paths: dict[str, object] = paths_value
@@ -77,6 +104,25 @@ def load_settings(config_path: Path | None = None) -> Settings:
     ).upper()
     state_file = _require_non_empty_string(paths, "state_file", "paths.state_file")
     log_file = _require_non_empty_string(paths, "log_file", "paths.log_file")
+    dropbox_workbook_path = _optional_dropbox_path(
+        dropbox_value,
+        "workbook_path",
+        "dropbox.workbook_path",
+    )
+    dropbox_test_workbook_path = _optional_dropbox_path(
+        dropbox_value,
+        "test_workbook_path",
+        "dropbox.test_workbook_path",
+    )
+    if (
+        dropbox_workbook_path is not None
+        and dropbox_test_workbook_path is not None
+        and dropbox_workbook_path.casefold()
+        == dropbox_test_workbook_path.casefold()
+    ):
+        raise ConfigurationError(
+            "Dropbox production and test workbook paths must be different."
+        )
 
     allowed_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
     if log_level not in allowed_log_levels:
@@ -89,4 +135,6 @@ def load_settings(config_path: Path | None = None) -> Settings:
         log_level=log_level,
         state_file=_resolve_path(state_file, PROJECT_ROOT),
         log_file=_resolve_path(log_file, PROJECT_ROOT),
+        dropbox_workbook_path=dropbox_workbook_path,
+        dropbox_test_workbook_path=dropbox_test_workbook_path,
     )

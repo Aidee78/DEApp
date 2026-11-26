@@ -11,6 +11,10 @@ Requires-Dist: python-dotenv>=1.0.1
 Requires-Dist: beautifulsoup4
 Requires-Dist: lxml
 Requires-Dist: dateparser>=1.5.1
+Requires-Dist: tzdata>=2024.1
+Requires-Dist: xlwings>=0.37.12
+Requires-Dist: dropbox<13,>=12.0.2
+Requires-Dist: keyring
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-cov>=5.0; extra == "dev"
@@ -33,6 +37,8 @@ From the project root, create and activate a virtual environment:
 ```powershell
 py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+```
 
 ## Command-line date options
 
@@ -43,3 +49,26 @@ python -m deapp
 python -m deapp --start-date 2026-10-01
 python -m deapp --end-date 2026-10-15
 python -m deapp --start-date 2026-10-01 --end-date 2026-10-15
+```
+
+## Activity-record consolidation
+
+The approved rules for consolidating extracted activity records are in the
+[activity-record consolidation guide](docs/RECORD_CONSOLIDATION.md). Records
+are grouped only when their type and the values and flags for date, shift,
+and batch number match. Workbook duplicate-row and retry behavior remains a
+separate open decision.
+
+## Zoho authorization
+
+Zoho desktop OAuth setup and secure token storage are documented in the
+[Zoho setup guide](docs/ZOHO_SETUP.md). The authorization utility stores the
+refresh token in Windows Credential Manager, not in `.env`.
+
+## Dropbox setup
+
+Dropbox authorization and transfer setup are documented in the
+[Dropbox setup guide](docs/DROPBOX_SETUP.md). Configure separate production
+and test workbook paths before use. The Dropbox service stores its refresh token
+in Windows Credential Manager and uses a remote revision check before replacing
+a workbook.

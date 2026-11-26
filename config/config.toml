@@ -6,6 +6,12 @@ log_level = "INFO"
 state_file = "data/state.json"
 log_file = "logs/deapp.log"
 
-# Paths are relative to the project root inferred from the config file location. No workbook
-# path or email-matching rules are included because the plan says those still need to be 
-# confirmed.
+# Application paths are relative to the project root inferred from this file.
+
+# Dropbox paths are account-relative Dropbox paths, not local Windows paths.
+# Fill in both distinct targets before using the Dropbox integration. The test
+# path must identify a test workbook, never the production workbook.
+
+[dropbox]
+# workbook_path = "/folder/production-workbook.xlsx"
+test_workbook_path = "/PR - Production/PDR - Production Daily Report/Automation Testing/BL_-_Processing___Packaging_Report_-_renamed_tables.xlsx"

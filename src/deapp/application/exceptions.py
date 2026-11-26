@@ -81,6 +81,10 @@ class DropboxError(IntegrationError):
     """Raised when a Dropbox operation fails."""
 
 
+class DropboxConflictError(DropboxError):
+    """Raised when the remote workbook changed after it was downloaded."""
+
+
 class WorkbookError(ApplicationError):
     """Base for workbook access, modification, and validation failures."""
 

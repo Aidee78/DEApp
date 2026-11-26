@@ -12,6 +12,7 @@ from typing import Protocol, TypeVar
 from deapp.application.exceptions import WorkflowError
 from deapp.models.email import Email
 from deapp.models.extracted_data import ExtractedData
+from deapp.services.dropbox.models import DropboxSnapshot
 
 
 T = TypeVar("T")
@@ -48,12 +49,16 @@ class WorkbookService(Protocol):
 class DropboxService(Protocol):
     """Transfer the workbook to and from Dropbox."""
 
-    def download_workbook(self, destination: Path) -> None:
-        """Download the remote workbook to a local path."""
+    def download_workbook(self, destination: Path) -> DropboxSnapshot:
+        """Download the remote workbook and return its captured revision."""
         ...
 
-    def upload_workbook(self, source: Path) -> None:
-        """Upload a validated local workbook."""
+    def upload_workbook(
+        self,
+        source: Path,
+        snapshot: DropboxSnapshot,
+    ) -> str:
+        """Upload a validated local workbook if its remote revision is current."""
         ...
 
 
@@ -101,12 +106,13 @@ def run_workflow(
 
         # The context manager must clean up the local file after success/failure.
         with dependencies.make_working_path() as local_workbook:
-            dependencies.dropbox.download_workbook(local_workbook)
+            snapshot = dependencies.dropbox.download_workbook(local_workbook)
             dependencies.workbook.update(local_workbook, records)
             dependencies.workbook.validate(local_workbook)
 
+            # This call follows validation; Dropbox also rejects a stale revision.
             # State must not advance unless upload reports success.
-            dependencies.dropbox.upload_workbook(local_workbook)
+            dependencies.dropbox.upload_workbook(local_workbook, snapshot)
             dependencies.state_writer(end_date)
 
     return RunResult(

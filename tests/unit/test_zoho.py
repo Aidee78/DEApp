@@ -17,14 +17,13 @@ from deapp.services.zoho.selection import get_daily_messages_by_subject
 def make_settings(
     *,
     refresh_token: str | None = None,
-    authorization_code: str | None = None,
+    client_secret: str | None = None,
 ) -> ZohoOAuthSettings:
     return ZohoOAuthSettings(
         accounts_server="https://accounts.zoho.com",
         client_id="test-client",
-        client_secret="test-secret",
+        client_secret=client_secret,
         refresh_token=refresh_token,
-        authorization_code=authorization_code,
         redirect_uri="https://example.test/callback",
         timeout_seconds=2,
     )
@@ -43,7 +42,7 @@ def mock_response(
     return response
 
 
-def test_get_access_token_exchanges_auth_code_and_saves_refresh_token() -> None:
+def test_exchange_auth_code_uses_pkce_and_saves_refresh_token() -> None:
     session = Mock()
     session.post.return_value = mock_response(
         {
@@ -52,32 +51,33 @@ def test_get_access_token_exchanges_auth_code_and_saves_refresh_token() -> None:
             "expires_in": 3600,
         }
     )
-    auth = ZohoAuthenticator(
-        make_settings(authorization_code="one-time-code"),
-        session=session,
-    )
+    auth = ZohoAuthenticator(make_settings(), session=session)
 
-    with (
-        patch(
-            "deapp.services.zoho.authentication.save_secret"
-        ) as save_secret,
-        patch(
-            "deapp.services.zoho.authentication.remove_secret"
-        ) as remove_secret,
-    ):
-        assert auth.get_access_token() == "access-value"
+    with patch(
+        "deapp.services.zoho.authentication.keyring.set_password"
+    ) as save_password:
+        token_set = auth.exchange_authorization_code(
+            "one-time-code",
+            "pkce-verifier",
+        )
 
-    save_secret.assert_called_once_with(
-        "ZOHO_REFRESH_TOKEN",
+    save_password.assert_called_once_with(
+        "DEApp",
+        "zoho_refresh_token:test-client",
         "refresh-value",
     )
-    remove_secret.assert_called_once_with("ZOHO_AUTH_CODE")
-    assert session.post.call_args.kwargs["data"]["grant_type"] == (
-        "authorization_code"
-    )
+    assert token_set.access_token == "access-value"
+    assert token_set.refresh_token == "refresh-value"
+    assert session.post.call_args.kwargs["data"] == {
+        "code": "one-time-code",
+        "grant_type": "authorization_code",
+        "client_id": "test-client",
+        "redirect_uri": "https://example.test/callback",
+        "code_verifier": "pkce-verifier",
+    }
 
 
-def test_refresh_token_takes_precedence_over_auth_code() -> None:
+def test_refresh_token_is_used_to_obtain_access_token() -> None:
     session = Mock()
     session.post.return_value = mock_response(
         {"access_token": "refreshed-access", "expires_in": 3600}
@@ -85,7 +85,7 @@ def test_refresh_token_takes_precedence_over_auth_code() -> None:
     auth = ZohoAuthenticator(
         make_settings(
             refresh_token="saved-refresh",
-            authorization_code="unused-code",
+            client_secret="stored-client-secret",
         ),
         session=session,
     )
@@ -94,9 +94,12 @@ def test_refresh_token_takes_precedence_over_auth_code() -> None:
     assert session.post.call_args.kwargs["data"]["grant_type"] == (
         "refresh_token"
     )
+    assert session.post.call_args.kwargs["data"]["client_secret"] == (
+        "stored-client-secret"
+    )
 
 
-def test_failed_refresh_does_not_retry_with_auth_code() -> None:
+def test_failed_refresh_raises_without_retrying() -> None:
     session = Mock()
     session.post.return_value = mock_response(
         {"error": "invalid_code"},
@@ -104,10 +107,7 @@ def test_failed_refresh_does_not_retry_with_auth_code() -> None:
         status_code=400,
     )
     auth = ZohoAuthenticator(
-        make_settings(
-            refresh_token="revoked-refresh",
-            authorization_code="old-one-time-code",
-        ),
+        make_settings(refresh_token="revoked-refresh"),
         session=session,
     )
 
@@ -118,6 +118,13 @@ def test_failed_refresh_does_not_retry_with_auth_code() -> None:
     assert session.post.call_args.kwargs["data"]["grant_type"] == (
         "refresh_token"
     )
+
+
+def test_access_token_requires_authorization() -> None:
+    auth = ZohoAuthenticator(make_settings())
+
+    with pytest.raises(ZohoAuthenticationError, match="authorize_zoho.py"):
+        auth.get_access_token()
 
 
 class FakeMailClient:

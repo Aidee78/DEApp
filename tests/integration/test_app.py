@@ -51,7 +51,7 @@ load_environment()
 
 settings = load_zoho_oauth_settings()
 if not settings.refresh_token:
-    print("Set ZOHO_REFRESH_TOKEN for the test mailbox.")
+    print("Run scripts/authorize_zoho.py for the Zoho test mailbox.")
     sys.exit(1)
 
 account_id = os.environ.get("ZOHO_TEST_ACCOUNT_ID", "").strip()

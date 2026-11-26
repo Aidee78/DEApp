@@ -36,3 +36,17 @@ The approved rules for consolidating extracted activity records are in the
 are grouped only when their type and the values and flags for date, shift,
 and batch number match. Workbook duplicate-row and retry behavior remains a
 separate open decision.
+
+## Zoho authorization
+
+Zoho desktop OAuth setup and secure token storage are documented in the
+[Zoho setup guide](docs/ZOHO_SETUP.md). The authorization utility stores the
+refresh token in Windows Credential Manager, not in `.env`.
+
+## Dropbox setup
+
+Dropbox authorization and transfer setup are documented in the
+[Dropbox setup guide](docs/DROPBOX_SETUP.md). Configure separate production
+and test workbook paths before use. The Dropbox service stores its refresh token
+in Windows Credential Manager and uses a remote revision check before replacing
+a workbook.

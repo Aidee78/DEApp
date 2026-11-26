@@ -5,9 +5,18 @@ import os
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
+import keyring
+from keyring.errors import KeyringError
+
 from deapp.application.exceptions import ConfigurationError
 from deapp.config.secret_store import load_environment
-from deapp.services.zoho.authentication import ZohoOAuthSettings
+from deapp.services.zoho.authentication import (
+    KEYRING_SERVICE,
+    ZOHO_CLIENT_SECRET_CREDENTIAL,
+    ZOHO_REFRESH_TOKEN_CREDENTIAL,
+    ZohoOAuthSettings,
+    zoho_credential_username,
+)
 
 
 def _environment(
@@ -49,26 +58,38 @@ def load_secrets(
 def load_zoho_oauth_settings(
     environ: Mapping[str, str] | None = None,
 ) -> ZohoOAuthSettings:
-    """Load Zoho OAuth settings for either initial setup or normal runs.
+    """Load public Zoho settings and this Windows user's keyring credentials.
 
-    A refresh token takes precedence at runtime. An authorization code is
-    used only when no refresh token is configured.
+    Authorization codes and refresh tokens are deliberately not read from the
+    environment. The setup flow stores the refresh token in the system
+    credential store, scoped to the configured Zoho client ID.
     """
     source = _environment(environ)
     secrets = load_secrets(
-        ("ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET"),
+        ("ZOHO_CLIENT_ID",),
         environ=source,
     )
 
-    refresh_token = source.get("ZOHO_REFRESH_TOKEN", "").strip() or None
-    authorization_code = (
-        source.get("ZOHO_AUTH_CODE", "").strip() or None
-    )
-
-    if refresh_token is None and authorization_code is None:
-        raise ConfigurationError(
-            "Configure ZOHO_REFRESH_TOKEN or ZOHO_AUTH_CODE."
+    client_id = secrets["ZOHO_CLIENT_ID"]
+    try:
+        refresh_token = keyring.get_password(
+            KEYRING_SERVICE,
+            zoho_credential_username(
+                ZOHO_REFRESH_TOKEN_CREDENTIAL,
+                client_id,
+            ),
         )
+        client_secret = keyring.get_password(
+            KEYRING_SERVICE,
+            zoho_credential_username(
+                ZOHO_CLIENT_SECRET_CREDENTIAL,
+                client_id,
+            ),
+        )
+    except KeyringError as error:
+        raise ConfigurationError(
+            "Could not read Zoho credentials from Windows Credential Manager."
+        ) from error
 
     accounts_server = source.get(
         "ZOHO_ACCOUNTS_SERVER",
@@ -90,10 +111,9 @@ def load_zoho_oauth_settings(
 
     return ZohoOAuthSettings(
         accounts_server=accounts_server.rstrip("/"),
-        client_id=secrets["ZOHO_CLIENT_ID"],
-        client_secret=secrets["ZOHO_CLIENT_SECRET"],
+        client_id=client_id,
+        client_secret=client_secret,
         refresh_token=refresh_token,
-        authorization_code=authorization_code,
         redirect_uri=redirect_uri,
         timeout_seconds=timeout_seconds,
     )

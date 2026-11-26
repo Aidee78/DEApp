@@ -6,13 +6,22 @@ import logging
 import time
 from typing import Protocol
 
+import keyring
+from keyring.errors import KeyringError
 import requests
 
 from deapp.application.exceptions import InputError, ZohoAuthenticationError
-from deapp.config.secret_store import remove_secret, save_secret
 
 
 logger = logging.getLogger(__name__)
+KEYRING_SERVICE = "DEApp"
+ZOHO_REFRESH_TOKEN_CREDENTIAL = "zoho_refresh_token"
+ZOHO_CLIENT_SECRET_CREDENTIAL = "zoho_client_secret"
+
+
+def zoho_credential_username(credential_name: str, client_id: str) -> str:
+    """Scope a Zoho credential to the client registration that issued it."""
+    return f"{credential_name}:{client_id}"
 
 
 class TokenResponse(Protocol):
@@ -29,13 +38,12 @@ class TokenResponse(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class ZohoOAuthSettings:
-    """Zoho OAuth configuration and credentials."""
+    """Zoho OAuth configuration and credentials loaded for this user."""
 
     accounts_server: str
     client_id: str
-    client_secret: str
+    client_secret: str | None = None
     refresh_token: str | None = None
-    authorization_code: str | None = None
     redirect_uri: str = ""
     timeout_seconds: float = 30.0
 
@@ -50,7 +58,7 @@ class ZohoTokenSet:
 
 
 class ZohoAuthenticator:
-    """Cache access tokens and acquire them through refresh or authorization."""
+    """Cache Zoho access tokens and refresh them using a secure stored token."""
 
     def __init__(
         self,
@@ -68,12 +76,11 @@ class ZohoAuthenticator:
         self._clock = clock
         self._expiry_buffer_seconds = expiry_buffer_seconds
         self._refresh_token = settings.refresh_token
-        self._authorization_code = settings.authorization_code
         self._access_token: str | None = None
         self._expires_at: float | None = None
 
     def get_access_token(self) -> str:
-        """Return a cached token, refresh it, or perform the initial exchange."""
+        """Return a cached access token or obtain one using the refresh token."""
         if (
             self._access_token is not None
             and self._expires_at is not None
@@ -83,34 +90,38 @@ class ZohoAuthenticator:
             return self._access_token
 
         if self._refresh_token:
-            # A failed refresh raises. A one-time code is not a fallback.
             return self._refresh_access_token()
 
-        if self._authorization_code:
-            return self.exchange_authorization_code(
-                self._authorization_code
-            ).access_token
-
         raise ZohoAuthenticationError(
-            "Configure ZOHO_REFRESH_TOKEN or ZOHO_AUTH_CODE."
+            "Zoho authorization is missing; run scripts/authorize_zoho.py."
         )
 
-    def exchange_authorization_code(self, code: str) -> ZohoTokenSet:
-        """Exchange a one-time code, save its refresh token, and clear the code."""
+    def exchange_authorization_code(
+        self,
+        code: str,
+        code_verifier: str,
+    ) -> ZohoTokenSet:
+        """Exchange a PKCE-protected authorization code and store its token.
+
+        This method is used by the interactive setup command. The verifier and
+        authorization code are kept in memory and are never persisted.
+        """
         if not isinstance(code, str) or not code.strip():
             raise InputError("Authorization code must not be empty.")
+        if not isinstance(code_verifier, str) or not code_verifier.strip():
+            raise InputError("PKCE code verifier must not be empty.")
+        if not self._settings.redirect_uri:
+            raise InputError("ZOHO_REDIRECT_URI must be configured.")
 
         payload = {
             "code": code.strip(),
             "grant_type": "authorization_code",
             "client_id": self._settings.client_id,
-            "client_secret": self._settings.client_secret,
+            "redirect_uri": self._settings.redirect_uri,
+            "code_verifier": code_verifier,
         }
-
-        # Server-based OAuth clients require the same redirect URI used during
-        # authorization. Some self-client flows do not use a redirect URI.
-        if self._settings.redirect_uri:
-            payload["redirect_uri"] = self._settings.redirect_uri
+        if self._settings.client_secret:
+            payload["client_secret"] = self._settings.client_secret
 
         data = self._post_token_request(payload)
         access_token = data.get("access_token")
@@ -128,20 +139,21 @@ class ZohoAuthenticator:
             )
 
         try:
-            save_secret("ZOHO_REFRESH_TOKEN", refresh_token)
-        except OSError as exc:
+            keyring.set_password(
+                KEYRING_SERVICE,
+                zoho_credential_username(
+                    ZOHO_REFRESH_TOKEN_CREDENTIAL,
+                    self._settings.client_id,
+                ),
+                refresh_token,
+            )
+        except KeyringError as exc:
             raise ZohoAuthenticationError(
-                "Could not persist the Zoho refresh token."
+                "Could not save the Zoho refresh token in Windows "
+                "Credential Manager."
             ) from exc
 
         self._refresh_token = refresh_token
-        self._authorization_code = None
-
-        try:
-            remove_secret("ZOHO_AUTH_CODE")
-        except OSError:
-            # The saved refresh token takes precedence on later runs.
-            logger.warning("Could not remove the consumed Zoho auth code.")
 
         self._cache_access_token(access_token, expires_in)
         logger.info("Zoho authorization-code exchange succeeded.")
@@ -162,14 +174,14 @@ class ZohoAuthenticator:
         if not self._refresh_token:
             raise ZohoAuthenticationError("No Zoho refresh token is available.")
 
-        data = self._post_token_request(
-            {
-                "refresh_token": self._refresh_token,
-                "client_id": self._settings.client_id,
-                "client_secret": self._settings.client_secret,
-                "grant_type": "refresh_token",
-            }
-        )
+        payload = {
+            "refresh_token": self._refresh_token,
+            "client_id": self._settings.client_id,
+            "grant_type": "refresh_token",
+        }
+        if self._settings.client_secret:
+            payload["client_secret"] = self._settings.client_secret
+        data = self._post_token_request(payload)
 
         access_token = data.get("access_token")
         if not isinstance(access_token, str) or not access_token:

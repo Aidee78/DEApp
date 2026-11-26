@@ -3,6 +3,10 @@ python-dotenv>=1.0.1
 beautifulsoup4
 lxml
 dateparser>=1.5.1
+tzdata>=2024.1
+xlwings>=0.37.12
+dropbox<13,>=12.0.2
+keyring
 
 [dev]
 pytest>=8.0

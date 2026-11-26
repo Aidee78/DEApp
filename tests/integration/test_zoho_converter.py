@@ -24,7 +24,7 @@ def test_live_zoho_messages_through_parser_and_converter() -> None:
     settings = load_zoho_oauth_settings()
 
     if not settings.refresh_token:
-        pytest.fail("Set ZOHO_REFRESH_TOKEN for the test mailbox.")
+        pytest.fail("Run scripts/authorize_zoho.py for the Zoho test mailbox.")
 
     account_id = os.environ.get("ZOHO_TEST_ACCOUNT_ID", "").strip()
     date_text = os.environ.get("ZOHO_TEST_DATE", "").strip()

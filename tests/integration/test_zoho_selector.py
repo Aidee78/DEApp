@@ -22,8 +22,8 @@ def test_selector_against_zoho_for_configured_date() -> None:
 
     if not settings.refresh_token:
         pytest.fail(
-            "Set ZOHO_REFRESH_TOKEN for the test mailbox. "
-            "This test will not consume ZOHO_AUTH_CODE."
+            "Run scripts/authorize_zoho.py for the Zoho test mailbox. "
+            "This test will not start an interactive authorization flow."
         )
 
     account_id = os.environ.get("ZOHO_TEST_ACCOUNT_ID", "").strip()
